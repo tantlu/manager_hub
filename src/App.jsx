@@ -39,7 +39,7 @@ import {
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
   ChevronRight, Share2, Home, Globe, Hand, Footprints,
-  Calendar, Medal, Plus, Crown
+  Calendar, Medal, Plus, Crown, TrendingDown
 } from 'lucide-react';
 
 // --- CONFIG & MOCK DATA ---
@@ -58,6 +58,38 @@ const renderRichText = (text) => {
     .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
     .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
+};
+
+const parseTransferValue = (valStr) => {
+  if (!valStr || valStr === '-') return 0;
+  // Xử lý chuỗi kiểu "€10M - €15M" hoặc "€500K"
+  try {
+    // Xóa ký tự tiền tệ và khoảng trắng thừa
+    let cleanStr = valStr.replace(/[^0-9KMB\-\.]/g, '');
+
+    const parseSingleVal = (s) => {
+      let multiplier = 1;
+      if (s.includes('K')) multiplier = 1000;
+      if (s.includes('M')) multiplier = 1000000;
+      if (s.includes('B')) multiplier = 1000000000;
+      return parseFloat(s.replace(/[KMB]/g, '')) * multiplier;
+    };
+
+    if (cleanStr.includes('-')) {
+      const [min, max] = cleanStr.split('-');
+      return (parseSingleVal(min) + parseSingleVal(max)) / 2;
+    }
+    return parseSingleVal(cleanStr);
+  } catch (e) {
+    return 0;
+  }
+};
+
+const formatCurrency = (value) => {
+  if (!value || value === 0) return '-';
+  if (value >= 1000000) return `€${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `€${(value / 1000).toFixed(0)}K`;
+  return `€${value}`;
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -118,6 +150,7 @@ const parseHtmlTable = (htmlString) => {
 
       const name = getVal(['name']);
       if (name) {
+        const rawTransferVal = getVal(['transfervalue', 'value']) || '-';
         const player = {
           UID: getVal(['uid', 'uniqueid']),
           Name: name,
@@ -133,7 +166,8 @@ const parseHtmlTable = (htmlString) => {
           Gls: getVal(['gls', 'goals']) || 0,
           Ast: getVal(['ast', 'assists']) || 0,
           'Av Rat': getVal(['avrat', 'averagerating', 'avr']) || 0,
-          'Transfer Value': getVal(['transfervalue', 'value']) || '-',
+          'Transfer Value': rawTransferVal,
+          'Transfer Value Num': typeof rawTransferVal === 'number' ? rawTransferVal : parseTransferValue(rawTransferVal),
           Stats: {}
         };
         for (const [fileKey, statKey] of Object.entries(statsMapping)) {
@@ -223,26 +257,30 @@ const AttributeBox = ({ label, value }) => {
   );
 };
 
-// --- NEW COMPONENT: TABLE STAT BAR (For List View) ---
-const TableStatBar = ({ value, max = 20, colorMap = true }) => {
-  if (value === undefined || value === '-' || value === 0) return <span className="text-slate-500">-</span>;
+// --- NEW: TABLE STAT BAR (Updated Style) ---
+const TableStatBar = ({ value, max = 20, colorMap = true, showValueLeft = false }) => {
+  if (value === undefined || value === '-' || value === 0) return <span className="text-slate-600 text-xs">-</span>;
 
-  let color = "bg-slate-600";
+  let color = "bg-blue-500"; // Default for non-mapped (Apps)
   if (colorMap) {
-    if (value >= 16) color = "bg-emerald-500";
-    else if (value >= 11) color = "bg-yellow-500";
+    // Logic màu cho Goal/Rating
+    // Ví dụ: Goal max 50 -> >30 xanh, >15 vàng
+    const ratio = value / max;
+    if (ratio > 0.7) color = "bg-emerald-500";
+    else if (ratio > 0.4) color = "bg-yellow-500";
     else color = "bg-slate-500";
   }
 
-  // Scale max to make bars visible (e.g. for attributes max is 20)
+  // Scale max to make bars visible
   const percent = Math.min((value / max) * 100, 100);
 
   return (
-    <div className="flex items-center gap-2 w-full max-w-[60px]">
-      <span className={`text-xs font-bold w-5 text-right ${value >= 11 ? 'text-white' : 'text-slate-400'}`}>{value}</span>
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-sm overflow-hidden border border-slate-700/50">
-        <div className={`h-full ${color}`} style={{ width: `${percent}%` }}></div>
+    <div className={`flex items-center gap-2 w-full max-w-[80px] ${showValueLeft ? 'justify-end' : ''}`}>
+      {showValueLeft && <span className={`text-xs font-bold w-6 text-right ${value > 0 ? 'text-white' : 'text-slate-500'}`}>{value}</span>}
+      <div className="flex-1 h-2 bg-slate-900/50 rounded-sm overflow-hidden border border-slate-700/30">
+        <div className={`h-full ${color} shadow-[0_0_8px_rgba(0,0,0,0.3)]`} style={{ width: `${percent}%` }}></div>
       </div>
+      {!showValueLeft && <span className={`text-xs font-bold w-6 ${value > 0 ? 'text-white' : 'text-slate-500'}`}>{value}</span>}
     </div>
   );
 };
@@ -373,9 +411,16 @@ const StoryMode = ({ user }) => {
     return total;
   };
 
+  // Top Stats Helpers
+  const getTopScorers = (players) => [...players].sort((a, b) => (b.Gls || 0) - (a.Gls || 0)).slice(0, 5);
+  const getTopAssists = (players) => [...players].sort((a, b) => (b.Ast || 0) - (a.Ast || 0)).slice(0, 5);
+  const getTopRating = (players) => [...players].sort((a, b) => (b['Av Rat'] || 0) - (a['Av Rat'] || 0)).slice(0, 5);
+
   const getMaxStats = (players) => ({
     apps: Math.max(...players.map(p => p.Apps || 0), 1),
-    gls: Math.max(...players.map(p => p.Gls || 0), 1)
+    gls: Math.max(...players.map(p => p.Gls || 0), 1),
+    ast: Math.max(...players.map(p => p.Ast || 0), 1),
+    val: Math.max(...players.map(p => p['Transfer Value Num'] || 0), 1)
   });
 
   return (
@@ -464,16 +509,57 @@ const StoryMode = ({ user }) => {
         </div>
       )}
 
-      {/* Detail View - Player List */}
+      {/* Detail View - Player List & Top Stats */}
       {selectedSeason && (
         <div className="animate-in fade-in slide-in-from-right-4">
           <div className="flex items-center justify-between mb-6">
             <button onClick={() => setSelectedSeason(null)} className="flex items-center gap-2 text-slate-400 hover:text-white transition bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
               <ChevronRight className="rotate-180" size={16} /> Quay lại
             </button>
-            <h3 className="font-bold text-white text-xl">{selectedSeason.name} <span className="text-slate-500 font-normal text-sm ml-2">| Danh sách cầu thủ</span></h3>
+            <h3 className="font-bold text-white text-xl">{selectedSeason.name} <span className="text-slate-500 font-normal text-sm ml-2">| Tổng kết mùa giải</span></h3>
           </div>
 
+          {/* TOP STATS PANELS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* Top Scorers */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="bg-slate-900/50 p-3 border-b border-slate-700 flex items-center gap-2"><Medal size={16} className="text-yellow-500" /> <span className="font-bold text-white">Vua Phá Lưới</span></div>
+              {getTopScorers(selectedSeason.players).map((p, i) => (
+                <div key={i} className="flex items-center p-2 border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                  <span className="text-xs text-slate-500 w-6 text-center">{i + 1}</span>
+                  <PlayerAvatar uid={p.UID} name={p.Name} size="sm" className="w-8 h-8 mr-2" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-white truncate">{p.Name}</p></div>
+                  <span className="text-emerald-400 font-bold text-sm">{p.Gls}</span>
+                </div>
+              ))}
+            </div>
+            {/* Top Assists */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="bg-slate-900/50 p-3 border-b border-slate-700 flex items-center gap-2"><Footprints size={16} className="text-blue-500" /> <span className="font-bold text-white">Vua Kiến Tạo</span></div>
+              {getTopAssists(selectedSeason.players).map((p, i) => (
+                <div key={i} className="flex items-center p-2 border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                  <span className="text-xs text-slate-500 w-6 text-center">{i + 1}</span>
+                  <PlayerAvatar uid={p.UID} name={p.Name} size="sm" className="w-8 h-8 mr-2" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-white truncate">{p.Name}</p></div>
+                  <span className="text-blue-400 font-bold text-sm">{p.Ast}</span>
+                </div>
+              ))}
+            </div>
+            {/* Top Rating */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="bg-slate-900/50 p-3 border-b border-slate-700 flex items-center gap-2"><Star size={16} className="text-purple-500" /> <span className="font-bold text-white">Cầu Thủ Xuất Sắc</span></div>
+              {getTopRating(selectedSeason.players).map((p, i) => (
+                <div key={i} className="flex items-center p-2 border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                  <span className="text-xs text-slate-500 w-6 text-center">{i + 1}</span>
+                  <PlayerAvatar uid={p.UID} name={p.Name} size="sm" className="w-8 h-8 mr-2" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-white truncate">{p.Name}</p></div>
+                  <span className="text-purple-400 font-bold text-sm">{p['Av Rat']}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Full List */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-slate-300">
@@ -481,12 +567,13 @@ const StoryMode = ({ user }) => {
                   <tr>
                     <th className="p-4 w-16 pl-6">Info</th>
                     <th className="p-4">Tên cầu thủ</th>
-                    <th className="p-4 w-28">Vị trí</th>
+                    <th className="p-4 w-24">Vị trí</th>
                     <th className="p-4 w-16 text-center">Tuổi</th>
                     <th className="p-4 w-32">Apps</th>
                     <th className="p-4 w-32">Goals</th>
-                    <th className="p-4 w-20 text-center">Ast</th>
+                    <th className="p-4 w-32">Ast</th>
                     <th className="p-4 w-24 text-right pr-6">Av Rat</th>
+                    <th className="p-4 w-32 text-right">Value</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
@@ -498,12 +585,13 @@ const StoryMode = ({ user }) => {
                       <td className="p-4 text-center text-slate-500">{p.Age}</td>
                       <td className="p-4"><TableStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorMap={false} /></td>
                       <td className="p-4"><TableStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorMap={true} /></td>
-                      <td className="p-4 text-center text-slate-300 font-medium">{p.Ast || '-'}</td>
+                      <td className="p-4"><TableStatBar value={p.Ast} max={getMaxStats(selectedSeason.players).ast} colorMap={true} /></td>
                       <td className="p-4 text-right pr-6">
                         <div className={`inline-block px-2 py-1 rounded text-xs font-bold border ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
                           {p["Av Rat"]}
                         </div>
                       </td>
+                      <td className="p-4 text-right text-slate-400 text-xs">{p['Transfer Value']}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -684,7 +772,7 @@ export default function App() {
           <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">Admin (Local)</div></div><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
       </nav>
-      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={CURRENT_USER} posts={posts} setPosts={setPosts} />}{tab === 'news' && <NewsFeed user={CURRENT_USER} posts={posts} setPosts={setPosts} />}{tab === 'database' && <DatabaseView players={players} />}{tab === 'story' && <StoryMode user={CURRENT_USER} />}{tab === 'admin' && <AdminPanel onUpdateDb={updateDb} />}</main>
+      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={user} posts={posts} setPosts={setPosts} />}{tab === 'news' && <NewsFeed user={user} posts={posts} setPosts={setPosts} />}{tab === 'database' && <DatabaseView players={players} />}{tab === 'story' && <StoryMode user={user} />}{tab === 'admin' && <AdminPanel onUpdateDb={updateDb} />}</main>
     </div>
   );
 }
