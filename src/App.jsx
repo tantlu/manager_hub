@@ -36,7 +36,7 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home, Globe, Hand
+  ChevronRight, Share2, Home, Globe, Hand, Footprints
 } from 'lucide-react';
 
 // --- FIREBASE CONFIGURATION ---
@@ -119,59 +119,25 @@ const parseHtmlTable = (htmlString) => {
     const data = [];
     const startIndex = rows.indexOf(headerRow) + 1;
 
-    // Mapping đầy đủ bao gồm cả chỉ số thủ môn
     const statsMapping = {
-      // Technical (Outfield)
-      'cor': 'Cor', 'corners': 'Cor',
-      'cro': 'Cro', 'crossing': 'Cro',
-      'dri': 'Dri', 'dribbling': 'Dri',
-      'fin': 'Fin', 'finishing': 'Fin',
-      'fir': 'Fir', 'firsttouch': 'Fir',
-      'fre': 'Fre', 'freekicks': 'Fre',
-      'hea': 'Hea', 'heading': 'Hea',
-      'lon': 'Lon', 'longshots': 'Lon',
-      'lth': 'LTh', 'longthrows': 'LTh',
-      'mar': 'Mar', 'marking': 'Mar',
-      'pas': 'Pas', 'passing': 'Pas',
-      'pen': 'Pen', 'penaltytaking': 'Pen',
-      'tck': 'Tck', 'tackling': 'Tck',
-      'tec': 'Tec', 'technique': 'Tec',
-      // Goalkeeping
-      'aer': 'Aer', 'aerialreach': 'Aer',
-      'cmd': 'Cmd', 'commandofarea': 'Cmd',
-      'com': 'Com', 'communication': 'Com',
-      'ecc': 'Ecc', 'eccentricity': 'Ecc',
-      'han': 'Han', 'handling': 'Han',
-      'kic': 'Kic', 'kicking': 'Kic',
-      'one': 'One', 'oneonones': 'One', '1v1': 'One',
-      'pun': 'Pun', 'punching': 'Pun', // tendencytopunch
-      'ref': 'Ref', 'reflexes': 'Ref',
-      'rus': 'Rus', 'rushingout': 'Rus', // rushingout(tendency)
-      'thr': 'Thr', 'throwing': 'Thr',
-      // Mental
-      'agg': 'Agg', 'aggression': 'Agg',
-      'ant': 'Ant', 'anticipation': 'Ant',
-      'bra': 'Bra', 'bravery': 'Bra',
-      'cmp': 'Cmp', 'composure': 'Cmp',
-      'cnt': 'Cnt', 'concentration': 'Cnt',
-      'dec': 'Dec', 'decisions': 'Dec',
-      'det': 'Det', 'determination': 'Det',
-      'fla': 'Fla', 'flair': 'Fla',
-      'ldr': 'Ldr', 'leadership': 'Ldr',
-      'off': 'Off', 'offtheball': 'Off', 'otb': 'Off',
-      'pos': 'Pos', 'positioning': 'Pos',
-      'tea': 'Tea', 'teamwork': 'Tea',
-      'vis': 'Vis', 'vision': 'Vis',
-      'wor': 'Wor', 'workrate': 'Wor',
-      // Physical
-      'acc': 'Acc', 'acceleration': 'Acc',
-      'agi': 'Agi', 'agility': 'Agi',
-      'bal': 'Bal', 'balance': 'Bal',
-      'jum': 'Jum', 'jumpingreach': 'Jum',
-      'nat': 'Nat', 'naturalfitness': 'Nat',
-      'pac': 'Pac', 'pace': 'Pac',
-      'sta': 'Sta', 'stamina': 'Sta',
-      'str': 'Str', 'strength': 'Str'
+      'cor': 'Cor', 'corners': 'Cor', 'cro': 'Cro', 'crossing': 'Cro', 'dri': 'Dri', 'dribbling': 'Dri',
+      'fin': 'Fin', 'finishing': 'Fin', 'fir': 'Fir', 'firsttouch': 'Fir', 'fre': 'Fre', 'freekicks': 'Fre',
+      'hea': 'Hea', 'heading': 'Hea', 'lon': 'Lon', 'longshots': 'Lon', 'lth': 'LTh', 'longthrows': 'LTh',
+      'mar': 'Mar', 'marking': 'Mar', 'pas': 'Pas', 'passing': 'Pas', 'pen': 'Pen', 'penaltytaking': 'Pen',
+      'tck': 'Tck', 'tackling': 'Tck', 'tec': 'Tec', 'technique': 'Tec',
+      'agg': 'Agg', 'aggression': 'Agg', 'ant': 'Ant', 'anticipation': 'Ant', 'bra': 'Bra', 'bravery': 'Bra',
+      'cmp': 'Cmp', 'composure': 'Cmp', 'cnt': 'Cnt', 'concentration': 'Cnt', 'dec': 'Dec', 'decisions': 'Dec',
+      'det': 'Det', 'determination': 'Det', 'fla': 'Fla', 'flair': 'Fla', 'ldr': 'Ldr', 'leadership': 'Ldr',
+      'off': 'Off', 'offtheball': 'Off', 'otb': 'Off', 'pos': 'Pos', 'positioning': 'Pos', 'tea': 'Tea', 'teamwork': 'Tea',
+      'vis': 'Vis', 'vision': 'Vis', 'wor': 'Wor', 'workrate': 'Wor',
+      'acc': 'Acc', 'acceleration': 'Acc', 'agi': 'Agi', 'agility': 'Agi', 'bal': 'Bal', 'balance': 'Bal',
+      'jum': 'Jum', 'jumpingreach': 'Jum', 'nat': 'Nat', 'naturalfitness': 'Nat', 'pac': 'Pac', 'pace': 'Pac',
+      'sta': 'Sta', 'stamina': 'Sta', 'str': 'Str', 'strength': 'Str',
+      // GK specific
+      'aer': 'Aer', 'aerialreach': 'Aer', 'cmd': 'Cmd', 'commandofarea': 'Cmd', 'com': 'Com', 'communication': 'Com',
+      'ecc': 'Ecc', 'eccentricity': 'Ecc', 'han': 'Han', 'handling': 'Han', 'kic': 'Kic', 'kicking': 'Kic',
+      'one': 'One', 'oneonones': 'One', '1v1': 'One', 'pun': 'Pun', 'punching': 'Pun', 'ref': 'Ref', 'reflexes': 'Ref',
+      'rus': 'Rus', 'rushingout': 'Rus', 'thr': 'Thr', 'throwing': 'Thr'
     };
 
     for (let i = startIndex; i < rows.length; i++) {
@@ -200,16 +166,15 @@ const parseHtmlTable = (htmlString) => {
           Position: getVal(['position', 'pos']),
           Club: getVal(['club', 'team']),
           Age: getVal(['age']),
-          // Thêm các trường phụ nếu có
           'Height': getVal(['height']),
           'Weight': getVal(['weight']),
           'Preferred Foot': getVal(['preferredfoot', 'foot']),
-
           CA: getVal(['ca', 'currentability']) || '-',
           PA: getVal(['pa', 'potentialability']) || '-',
           Apps: getVal(['apps', 'appearances']) || 0,
           Gls: getVal(['gls', 'goals']) || 0,
-          'Av Rat': getVal(['avrat', 'averagerating', 'avr']) || '-',
+          Ast: getVal(['ast', 'assists']) || 0,
+          'Av Rat': getVal(['avrat', 'averagerating', 'avr']) || 0,
           'Transfer Value': getVal(['transfervalue', 'value']) || '-',
           Stats: {}
         };
@@ -243,21 +208,13 @@ const RadarChart = ({ stats, position }) => {
   let groups;
   if (isGK) {
     groups = [
-      { name: "AER", val: get('Aer') }, // Aerial
-      { name: "DIS", val: (get('Kic') + get('Thr')) / 2 }, // Distribution
-      { name: "COM", val: (get('Cmd') + get('Com')) / 2 }, // Command
-      { name: "SHO", val: (get('Ref') + get('One') + get('Han')) / 3 }, // Shot Stopping
-      { name: "PHY", val: (get('Agi') + get('Bal') + get('Str')) / 3 }, // Physical
-      { name: "MEN", val: (get('Ant') + get('Pos') + get('Cnt')) / 3 }  // Mental
+      { name: "AER", val: get('Aer') }, { name: "DIS", val: (get('Kic') + get('Thr')) / 2 }, { name: "COM", val: (get('Cmd') + get('Com')) / 2 },
+      { name: "SHO", val: (get('Ref') + get('One') + get('Han')) / 3 }, { name: "PHY", val: (get('Agi') + get('Bal') + get('Str')) / 3 }, { name: "MEN", val: (get('Ant') + get('Pos') + get('Cnt')) / 3 }
     ];
   } else {
     groups = [
-      { name: "ATT", val: (get('Fin') + get('Lon') + get('Off')) / 3 },
-      { name: "TEC", val: (get('Tec') + get('Dri') + get('Pas')) / 3 },
-      { name: "TAC", val: (get('Dec') + get('Ant') + get('Vis')) / 3 },
-      { name: "DEF", val: (get('Tck') + get('Mar') + get('Pos')) / 3 },
-      { name: "PHY", val: (get('Pac') + get('Acc') + get('Str')) / 3 },
-      { name: "CRE", val: (get('Fla') + get('Vis') + get('Cro')) / 3 }
+      { name: "ATT", val: (get('Fin') + get('Lon') + get('Off')) / 3 }, { name: "TEC", val: (get('Tec') + get('Dri') + get('Pas')) / 3 }, { name: "TAC", val: (get('Dec') + get('Ant') + get('Vis')) / 3 },
+      { name: "DEF", val: (get('Tck') + get('Mar') + get('Pos')) / 3 }, { name: "PHY", val: (get('Pac') + get('Acc') + get('Str')) / 3 }, { name: "CRE", val: (get('Fla') + get('Vis') + get('Cro')) / 3 }
     ];
   }
 
@@ -286,21 +243,17 @@ const RadarChart = ({ stats, position }) => {
 
 const AttributeBox = ({ label, value }) => {
   const val = value !== undefined ? value : '-';
-  let valColor = "text-slate-500";
-  let bgBar = "bg-transparent";
-
+  let valColor = "text-slate-500"; let bgBar = "bg-transparent";
   if (typeof val === 'number') {
     if (val >= 16) { valColor = "text-emerald-400 font-bold"; bgBar = "bg-emerald-500"; }
     else if (val >= 11) { valColor = "text-yellow-500 font-bold"; bgBar = "bg-yellow-500"; }
     else if (val >= 6) { valColor = "text-slate-300 font-medium"; bgBar = "bg-slate-500"; }
     else { valColor = "text-slate-500"; bgBar = "bg-slate-700"; }
   }
-
   return (
     <div className="flex justify-between items-center text-sm py-1 border-b border-slate-700/50 last:border-0 group hover:bg-slate-700/30 px-2 rounded transition">
       <span className="text-slate-400 font-medium group-hover:text-slate-200">{label}</span>
       <div className="flex items-center gap-2">
-        {/* Chỉ hiển thị thanh bar cho giá trị số */}
         {typeof val === 'number' && (
           <div className="w-8 h-1.5 bg-slate-800 rounded-full overflow-hidden hidden sm:block border border-slate-700/50">
             <div className={`h-full ${bgBar}`} style={{ width: `${(Math.min(val, 20) / 20) * 100}%` }}></div>
@@ -312,7 +265,92 @@ const AttributeBox = ({ label, value }) => {
   );
 };
 
-// --- COMPONENTS FOR POSTS & NEWSFEED (Giữ nguyên như cũ) ---
+const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500", label }) => {
+  const percent = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div className="flex items-center gap-2 w-24">
+      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+        <div className={`h-full ${colorClass}`} style={{ width: `${percent}%` }}></div>
+      </div>
+      <span className={`text-xs font-bold w-6 text-right ${value > 0 ? 'text-white' : 'text-slate-600'}`}>{value}</span>
+    </div>
+  );
+};
+
+// --- SHARED MODAL FOR BOTH MODES ---
+const PlayerDetailModal = ({ selected, onClose }) => {
+  if (!selected) return null;
+  const isGK = selected.Position && selected.Position.includes('GK');
+
+  return (
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-slate-800 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto border border-slate-600 relative" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-slate-700 hover:bg-red-600 rounded-full text-white transition z-20 shadow-lg"><X size={24} /></button>
+
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-slate-700 relative">
+          <div className="flex-shrink-0"><PlayerAvatar uid={selected.UID} name={selected.Name} size="xl" className="shadow-2xl ring-4 ring-slate-700" /></div>
+          <div className="flex-grow text-center md:text-left w-full">
+            <h2 className="text-4xl font-black text-white mb-1 flex items-center justify-center md:justify-start gap-3">{selected.Name} <span className="text-base font-normal text-slate-400 bg-slate-700 px-2 rounded border border-slate-600">{selected.Position}</span></h2>
+            <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm text-slate-300 mb-6">
+              <span className="flex items-center gap-1"><Shield size={16} className="text-emerald-400" /> {selected.Club}</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+              <span>{selected.Age} tuổi</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+              <span>{selected['Height'] || '-'}</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+              <span>{selected['Weight'] || '-'}</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+              <span>{selected['Preferred Foot'] || '-'}</span>
+            </div>
+
+            {/* Stat Cards Row */}
+            <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+              {/* Season Stats (If Available - Story Mode) */}
+              {(selected.Apps !== undefined && selected.Apps > 0) && (
+                <>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Apps</div><div className="text-xl font-black text-white">{selected.Apps}</div></div>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Goals</div><div className="text-xl font-black text-emerald-400">{selected.Gls}</div></div>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Ast</div><div className="text-xl font-black text-blue-400">{selected.Ast}</div></div>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Av Rat</div><div className={`text-xl font-black ${selected['Av Rat'] >= 7.5 ? 'text-emerald-400' : 'text-slate-200'}`}>{selected['Av Rat']}</div></div>
+                </>
+              )}
+
+              {/* Database Stats (If Available) */}
+              {(selected.CA !== undefined && selected.CA !== '-') && (
+                <>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">CA</div><div className="text-xl font-black text-emerald-400">{selected.CA}</div></div>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">PA</div><div className="text-xl font-black text-purple-400">{selected.PA}</div></div>
+                </>
+              )}
+              <div className="bg-slate-900/60 px-6 py-2 rounded-lg border border-slate-700 text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Giá trị</div><div className="text-lg font-bold text-white mt-1">{selected['Transfer Value'] || '-'}</div></div>
+            </div>
+          </div>
+          <div className="flex-shrink-0 w-48 h-48 hidden md:flex items-center justify-center bg-slate-900/30 rounded-xl border border-slate-700/50 absolute right-8 top-8"><RadarChart stats={selected.Stats} position={selected.Position} /></div>
+        </div>
+
+        {/* Attributes Body */}
+        <div className="p-8 bg-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {isGK ? (
+            <>
+              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider flex justify-between">Goalkeeping</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Aerial Reach" value={selected.Stats.Aer} /><AttributeBox label="Command of Area" value={selected.Stats.Cmd} /><AttributeBox label="Communication" value={selected.Stats.Com} /><AttributeBox label="Eccentricity" value={selected.Stats.Ecc} /><AttributeBox label="Handling" value={selected.Stats.Han} /><AttributeBox label="Kicking" value={selected.Stats.Kic} /><AttributeBox label="One on Ones" value={selected.Stats.One} /><AttributeBox label="Reflexes" value={selected.Stats.Ref} /><AttributeBox label="Rushing Out" value={selected.Stats.Rus} /><AttributeBox label="Punching" value={selected.Stats.Pun} /><AttributeBox label="Throwing" value={selected.Stats.Thr} /></div>}</div>
+              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider flex justify-between">Mental</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Aggression" value={selected.Stats.Agg} /><AttributeBox label="Anticipation" value={selected.Stats.Ant} /><AttributeBox label="Bravery" value={selected.Stats.Bra} /><AttributeBox label="Composure" value={selected.Stats.Cmp} /><AttributeBox label="Concentration" value={selected.Stats.Cnt} /><AttributeBox label="Decisions" value={selected.Stats.Dec} /><AttributeBox label="Determination" value={selected.Stats.Det} /><AttributeBox label="Flair" value={selected.Stats.Fla} /><AttributeBox label="Leadership" value={selected.Stats.Ldr} /><AttributeBox label="Off the Ball" value={selected.Stats.Off} /><AttributeBox label="Positioning" value={selected.Stats.Pos} /><AttributeBox label="Teamwork" value={selected.Stats.Tea} /><AttributeBox label="Vision" value={selected.Stats.Vis} /><AttributeBox label="Work Rate" value={selected.Stats.Wor} /></div>}</div>
+              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider flex justify-between">Physical</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Acceleration" value={selected.Stats.Acc} /><AttributeBox label="Agility" value={selected.Stats.Agi} /><AttributeBox label="Balance" value={selected.Stats.Bal} /><AttributeBox label="Jumping Reach" value={selected.Stats.Jum} /><AttributeBox label="Natural Fitness" value={selected.Stats.Nat} /><AttributeBox label="Pace" value={selected.Stats.Pac} /><AttributeBox label="Stamina" value={selected.Stats.Sta} /><AttributeBox label="Strength" value={selected.Stats.Str} /></div>}</div>
+            </>
+          ) : (
+            <>
+              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider flex justify-between">Technical</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Corners" value={selected.Stats.Cor} /><AttributeBox label="Crossing" value={selected.Stats.Cro} /><AttributeBox label="Dribbling" value={selected.Stats.Dri} /><AttributeBox label="Finishing" value={selected.Stats.Fin} /><AttributeBox label="First Touch" value={selected.Stats.Fir} /><AttributeBox label="Free Kicks" value={selected.Stats.Fre} /><AttributeBox label="Heading" value={selected.Stats.Hea} /><AttributeBox label="Long Shots" value={selected.Stats.Lon} /><AttributeBox label="Long Throws" value={selected.Stats.LTh} /><AttributeBox label="Marking" value={selected.Stats.Mar} /><AttributeBox label="Passing" value={selected.Stats.Pas} /><AttributeBox label="Penalty Taking" value={selected.Stats.Pen} /><AttributeBox label="Tackling" value={selected.Stats.Tck} /><AttributeBox label="Technique" value={selected.Stats.Tec} /></div>}</div>
+              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider flex justify-between">Mental</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Aggression" value={selected.Stats.Agg} /><AttributeBox label="Anticipation" value={selected.Stats.Ant} /><AttributeBox label="Bravery" value={selected.Stats.Bra} /><AttributeBox label="Composure" value={selected.Stats.Cmp} /><AttributeBox label="Concentration" value={selected.Stats.Cnt} /><AttributeBox label="Decisions" value={selected.Stats.Dec} /><AttributeBox label="Determination" value={selected.Stats.Det} /><AttributeBox label="Flair" value={selected.Stats.Fla} /><AttributeBox label="Leadership" value={selected.Stats.Ldr} /><AttributeBox label="Off the Ball" value={selected.Stats.Off} /><AttributeBox label="Positioning" value={selected.Stats.Pos} /><AttributeBox label="Teamwork" value={selected.Stats.Tea} /><AttributeBox label="Vision" value={selected.Stats.Vis} /><AttributeBox label="Work Rate" value={selected.Stats.Wor} /></div>}</div>
+              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider flex justify-between">Physical</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Acceleration" value={selected.Stats.Acc} /><AttributeBox label="Agility" value={selected.Stats.Agi} /><AttributeBox label="Balance" value={selected.Stats.Bal} /><AttributeBox label="Jumping Reach" value={selected.Stats.Jum} /><AttributeBox label="Natural Fitness" value={selected.Stats.Nat} /><AttributeBox label="Pace" value={selected.Stats.Pac} /><AttributeBox label="Stamina" value={selected.Stats.Sta} /><AttributeBox label="Strength" value={selected.Stats.Str} /></div>}</div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- POSTS & NEWSFEED ---
 const PostCreator = ({ user, onPostCreated }) => {
   const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [files, setFiles] = useState([]); const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null); const textareaRef = useRef(null);
@@ -410,149 +448,8 @@ const DatabaseView = () => {
           </table>
         </div>
       </div>
-      {selected && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={() => setSelected(null)}>
-          <div className="bg-slate-800 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto border border-slate-600 relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setSelected(null)} className="absolute top-4 right-4 p-2 bg-slate-700 hover:bg-red-600 rounded-full text-white transition z-20 shadow-lg"><X size={24} /></button>
-            {/* Header - Profile */}
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-slate-700 relative">
-              <div className="flex-shrink-0"><PlayerAvatar uid={selected.UID} name={selected.Name} size="xl" className="shadow-2xl ring-4 ring-slate-700" /></div>
-              <div className="flex-grow text-center md:text-left w-full">
-                <h2 className="text-4xl font-black text-white mb-1 flex items-center justify-center md:justify-start gap-3">{selected.Name} <span className="text-base font-normal text-slate-400 bg-slate-700 px-2 rounded border border-slate-600">{selected.Position}</span></h2>
-                <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm text-slate-300 mb-6">
-                  <span className="flex items-center gap-1"><Shield size={16} className="text-emerald-400" /> {selected.Club}</span>
-                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-                  <span>{selected.Age} tuổi</span>
-                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-                  <span>{selected['Height'] || '-'}</span>
-                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-                  <span>{selected['Weight'] || '-'}</span>
-                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-                  <span>{selected['Preferred Foot'] || '-'}</span>
-                </div>
-                <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 min-w-[80px] text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">CA</div><div className="text-2xl font-black text-emerald-400">{selected.CA || '-'}</div></div>
-                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 min-w-[80px] text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">PA</div><div className="text-2xl font-black text-purple-400">{selected.PA || '-'}</div></div>
-                  <div className="bg-slate-900/60 px-6 py-2 rounded-lg border border-slate-700 text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Giá trị</div><div className="text-lg font-bold text-white mt-1">{selected['Transfer Value'] || '-'}</div></div>
-                </div>
-              </div>
-              <div className="flex-shrink-0 hidden md:block bg-slate-900/30 p-4 rounded-xl border border-slate-700/50"><RadarChart stats={selected.Stats} position={selected.Position} /></div>
-            </div>
-
-            {/* Body - Attributes */}
-            <div className="p-8 bg-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {selected.Position && selected.Position.includes('GK') ? (
-                // Giao diện cho Thủ môn (GK)
-                <>
-                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider flex justify-between">Goalkeeping</h3>
-                    {selected.Stats && <div className="space-y-1">
-                      <AttributeBox label="Aerial Reach" value={selected.Stats.Aer} />
-                      <AttributeBox label="Command of Area" value={selected.Stats.Cmd} />
-                      <AttributeBox label="Communication" value={selected.Stats.Com} />
-                      <AttributeBox label="Eccentricity" value={selected.Stats.Ecc} />
-                      <AttributeBox label="Handling" value={selected.Stats.Han} />
-                      <AttributeBox label="Kicking" value={selected.Stats.Kic} />
-                      <AttributeBox label="One on Ones" value={selected.Stats.One} />
-                      <AttributeBox label="Reflexes" value={selected.Stats.Ref} />
-                      <AttributeBox label="Rushing Out" value={selected.Stats.Rus} />
-                      <AttributeBox label="Punching" value={selected.Stats.Pun} />
-                      <AttributeBox label="Throwing" value={selected.Stats.Thr} />
-                    </div>}
-                  </div>
-                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider flex justify-between">Mental</h3>
-                    {selected.Stats && <div className="space-y-1">
-                      <AttributeBox label="Aggression" value={selected.Stats.Agg} />
-                      <AttributeBox label="Anticipation" value={selected.Stats.Ant} />
-                      <AttributeBox label="Bravery" value={selected.Stats.Bra} />
-                      <AttributeBox label="Composure" value={selected.Stats.Cmp} />
-                      <AttributeBox label="Concentration" value={selected.Stats.Cnt} />
-                      <AttributeBox label="Decisions" value={selected.Stats.Dec} />
-                      <AttributeBox label="Determination" value={selected.Stats.Det} />
-                      <AttributeBox label="Flair" value={selected.Stats.Fla} />
-                      <AttributeBox label="Leadership" value={selected.Stats.Ldr} />
-                      <AttributeBox label="Off the Ball" value={selected.Stats.Off} />
-                      <AttributeBox label="Positioning" value={selected.Stats.Pos} />
-                      <AttributeBox label="Teamwork" value={selected.Stats.Tea} />
-                      <AttributeBox label="Vision" value={selected.Stats.Vis} />
-                      <AttributeBox label="Work Rate" value={selected.Stats.Wor} />
-                    </div>}
-                  </div>
-                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider flex justify-between">Physical</h3>
-                    {selected.Stats && <div className="space-y-1">
-                      <AttributeBox label="Acceleration" value={selected.Stats.Acc} />
-                      <AttributeBox label="Agility" value={selected.Stats.Agi} />
-                      <AttributeBox label="Balance" value={selected.Stats.Bal} />
-                      <AttributeBox label="Jumping Reach" value={selected.Stats.Jum} />
-                      <AttributeBox label="Natural Fitness" value={selected.Stats.Nat} />
-                      <AttributeBox label="Pace" value={selected.Stats.Pac} />
-                      <AttributeBox label="Stamina" value={selected.Stats.Sta} />
-                      <AttributeBox label="Strength" value={selected.Stats.Str} />
-                    </div>}
-                  </div>
-                </>
-              ) : (
-                // Giao diện cho Cầu thủ thường
-                <>
-                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider flex justify-between">Technical</h3>
-                    {selected.Stats && <div className="space-y-1">
-                      <AttributeBox label="Corners" value={selected.Stats.Cor} />
-                      <AttributeBox label="Crossing" value={selected.Stats.Cro} />
-                      <AttributeBox label="Dribbling" value={selected.Stats.Dri} />
-                      <AttributeBox label="Finishing" value={selected.Stats.Fin} />
-                      <AttributeBox label="First Touch" value={selected.Stats.Fir} />
-                      <AttributeBox label="Free Kicks" value={selected.Stats.Fre} />
-                      <AttributeBox label="Heading" value={selected.Stats.Hea} />
-                      <AttributeBox label="Long Shots" value={selected.Stats.Lon} />
-                      <AttributeBox label="Long Throws" value={selected.Stats.LTh} />
-                      <AttributeBox label="Marking" value={selected.Stats.Mar} />
-                      <AttributeBox label="Passing" value={selected.Stats.Pas} />
-                      <AttributeBox label="Penalty Taking" value={selected.Stats.Pen} />
-                      <AttributeBox label="Tackling" value={selected.Stats.Tck} />
-                      <AttributeBox label="Technique" value={selected.Stats.Tec} />
-                    </div>}
-                  </div>
-                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider flex justify-between">Mental</h3>
-                    {selected.Stats && <div className="space-y-1">
-                      <AttributeBox label="Aggression" value={selected.Stats.Agg} />
-                      <AttributeBox label="Anticipation" value={selected.Stats.Ant} />
-                      <AttributeBox label="Bravery" value={selected.Stats.Bra} />
-                      <AttributeBox label="Composure" value={selected.Stats.Cmp} />
-                      <AttributeBox label="Concentration" value={selected.Stats.Cnt} />
-                      <AttributeBox label="Decisions" value={selected.Stats.Dec} />
-                      <AttributeBox label="Determination" value={selected.Stats.Det} />
-                      <AttributeBox label="Flair" value={selected.Stats.Fla} />
-                      <AttributeBox label="Leadership" value={selected.Stats.Ldr} />
-                      <AttributeBox label="Off the Ball" value={selected.Stats.Off} />
-                      <AttributeBox label="Positioning" value={selected.Stats.Pos} />
-                      <AttributeBox label="Teamwork" value={selected.Stats.Tea} />
-                      <AttributeBox label="Vision" value={selected.Stats.Vis} />
-                      <AttributeBox label="Work Rate" value={selected.Stats.Wor} />
-                    </div>}
-                  </div>
-                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider flex justify-between">Physical</h3>
-                    {selected.Stats && <div className="space-y-1">
-                      <AttributeBox label="Acceleration" value={selected.Stats.Acc} />
-                      <AttributeBox label="Agility" value={selected.Stats.Agi} />
-                      <AttributeBox label="Balance" value={selected.Stats.Bal} />
-                      <AttributeBox label="Jumping Reach" value={selected.Stats.Jum} />
-                      <AttributeBox label="Natural Fitness" value={selected.Stats.Nat} />
-                      <AttributeBox label="Pace" value={selected.Stats.Pac} />
-                      <AttributeBox label="Stamina" value={selected.Stats.Sta} />
-                      <AttributeBox label="Strength" value={selected.Stats.Str} />
-                    </div>}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Reuse PlayerDetailModal */}
+      <PlayerDetailModal selected={selected} onClose={() => setSelected(null)} />
     </div>
   );
 };
@@ -560,12 +457,18 @@ const DatabaseView = () => {
 const StoryMode = () => {
   const [data, setData] = useState([]);
   const [view, setView] = useState('list');
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+
   const handleUpload = (e) => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = (ev) => { setData(parseHtmlTable(ev.target.result)); };
+    r.onload = (ev) => { setData(parseHtmlTable(ev.target.result)); setView('list'); };
     r.readAsText(f);
   };
+
+  const maxApps = useMemo(() => Math.max(...data.map(p => p.Apps || 0), 1), [data]);
+  const maxGls = useMemo(() => Math.max(...data.map(p => p.Gls || 0), 1), [data]);
+
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-10 rounded-xl mb-8 flex justify-between items-center shadow-lg border border-slate-700">
@@ -575,13 +478,41 @@ const StoryMode = () => {
       {data.length > 0 ? (
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <table className="w-full text-sm text-left text-slate-300">
-            <thead className="bg-slate-900 text-slate-400"><tr><th className="p-4">#</th><th className="p-4">Tên</th><th className="p-4 text-center">Trận</th><th className="p-4 text-center">Bàn</th><th className="p-4 text-center">Av Rat</th></tr></thead>
-            <tbody className="divide-y divide-slate-700">{data.slice(0, 20).map((p, i) => (<tr key={i} className="hover:bg-slate-700/50"><td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white">{p.Name}</td><td className="p-4 text-center">{p.Apps}</td><td className="p-4 text-center">{p.Gls}</td><td className="p-4 text-center text-emerald-400 font-bold">{p["Av Rat"]}</td></tr>))}</tbody>
+            <thead className="bg-slate-900 text-slate-400 uppercase text-xs font-bold tracking-wider">
+              <tr>
+                <th className="p-4 w-16">#</th>
+                <th className="p-4">Tên</th>
+                <th className="p-4 w-32">Vị trí</th>
+                <th className="p-4 w-16 text-center">Tuổi</th>
+                <th className="p-4 w-32">Apps</th>
+                <th className="p-4 w-32">Goals</th>
+                <th className="p-4 w-32">Ast</th>
+                <th className="p-4 w-24 text-right">Av Rat</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700">
+              {data.map((p, i) => (
+                <tr key={i} className="hover:bg-slate-700/50 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                  <td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td>
+                  <td className="p-4 font-bold text-white group-hover:text-emerald-400 transition">{p.Name}</td>
+                  <td className="p-4 text-slate-400 text-xs">{p.Position}</td>
+                  <td className="p-4 text-center text-slate-500">{p.Age}</td>
+                  <td className="p-4"><StoryStatBar value={p.Apps} max={maxApps} colorClass="bg-blue-500" /></td>
+                  <td className="p-4"><StoryStatBar value={p.Gls} max={maxGls} colorClass="bg-emerald-500" /></td>
+                  <td className="p-4 text-slate-400 text-center">{p.Ast || '-'}</td>
+                  <td className="p-4 text-right font-bold text-white bg-slate-900/30">
+                    <span className={`px-2 py-1 rounded ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400' : 'text-slate-400'}`}>{p["Av Rat"]}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       ) : (
         <div className="text-center py-20 bg-slate-800/50 rounded-xl border-2 border-dashed border-slate-700 flex flex-col items-center"><FileUp size={64} className="text-slate-600 mb-4" /><p className="text-slate-500">Chưa có dữ liệu mùa giải.</p></div>
       )}
+      {/* Modal in Story Mode */}
+      <PlayerDetailModal selected={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
     </div>
   );
 }
