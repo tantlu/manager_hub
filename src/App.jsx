@@ -36,7 +36,7 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home, Globe
+  ChevronRight, Share2, Home, Globe, Hand
 } from 'lucide-react';
 
 // --- FIREBASE CONFIGURATION ---
@@ -96,21 +96,8 @@ const callGeminiAPI = async (prompt) => {
 // --- UTILS & PARSERS ---
 const renderRichText = (text) => {
   if (!text) return null;
-  let html = text
-    .replace(/\n/g, '<br/>')
-    .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
-    .replace(/\*(.*?)\*/g, '<i class="text-emerald-200">$1</i>')
-    .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>')
-    .replace(/# (.*?)<br\/>/g, '<h2 class="text-xl font-bold my-3 text-emerald-500">$1</h2>');
+  let html = text.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>').replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
-};
-
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -132,24 +119,64 @@ const parseHtmlTable = (htmlString) => {
     const data = [];
     const startIndex = rows.indexOf(headerRow) + 1;
 
+    // Mapping đầy đủ bao gồm cả chỉ số thủ môn
     const statsMapping = {
-      'cor': 'Cor', 'corners': 'Cor', 'cro': 'Cro', 'crossing': 'Cro', 'dri': 'Dri', 'dribbling': 'Dri',
-      'fin': 'Fin', 'finishing': 'Fin', 'fir': 'Fir', 'firsttouch': 'Fir', 'fre': 'Fre', 'freekicks': 'Fre',
-      'hea': 'Hea', 'heading': 'Hea', 'lon': 'Lon', 'longshots': 'Lon', 'lth': 'LTh', 'longthrows': 'LTh',
-      'mar': 'Mar', 'marking': 'Mar', 'pas': 'Pas', 'passing': 'Pas', 'pen': 'Pen', 'penaltytaking': 'Pen',
-      'tck': 'Tck', 'tackling': 'Tck', 'tec': 'Tec', 'technique': 'Tec',
-      'agg': 'Agg', 'aggression': 'Agg', 'ant': 'Ant', 'anticipation': 'Ant', 'bra': 'Bra', 'bravery': 'Bra',
-      'cmp': 'Cmp', 'composure': 'Cmp', 'cnt': 'Cnt', 'concentration': 'Cnt', 'dec': 'Dec', 'decisions': 'Dec',
-      'det': 'Det', 'determination': 'Det', 'fla': 'Fla', 'flair': 'Fla', 'ldr': 'Ldr', 'leadership': 'Ldr',
-      'off': 'Off', 'offtheball': 'Off', 'otb': 'Off', 'pos': 'Pos', 'positioning': 'Pos', 'tea': 'Tea', 'teamwork': 'Tea',
-      'vis': 'Vis', 'vision': 'Vis', 'wor': 'Wor', 'workrate': 'Wor',
-      'acc': 'Acc', 'acceleration': 'Acc', 'agi': 'Agi', 'agility': 'Agi', 'bal': 'Bal', 'balance': 'Bal',
-      'jum': 'Jum', 'jumpingreach': 'Jum', 'nat': 'Nat', 'naturalfitness': 'Nat', 'pac': 'Pac', 'pace': 'Pac',
-      'sta': 'Sta', 'stamina': 'Sta', 'str': 'Str', 'strength': 'Str'
+      // Technical (Outfield)
+      'cor': 'Cor', 'corners': 'Cor',
+      'cro': 'Cro', 'crossing': 'Cro',
+      'dri': 'Dri', 'dribbling': 'Dri',
+      'fin': 'Fin', 'finishing': 'Fin',
+      'fir': 'Fir', 'firsttouch': 'Fir',
+      'fre': 'Fre', 'freekicks': 'Fre',
+      'hea': 'Hea', 'heading': 'Hea',
+      'lon': 'Lon', 'longshots': 'Lon',
+      'lth': 'LTh', 'longthrows': 'LTh',
+      'mar': 'Mar', 'marking': 'Mar',
+      'pas': 'Pas', 'passing': 'Pas',
+      'pen': 'Pen', 'penaltytaking': 'Pen',
+      'tck': 'Tck', 'tackling': 'Tck',
+      'tec': 'Tec', 'technique': 'Tec',
+      // Goalkeeping
+      'aer': 'Aer', 'aerialreach': 'Aer',
+      'cmd': 'Cmd', 'commandofarea': 'Cmd',
+      'com': 'Com', 'communication': 'Com',
+      'ecc': 'Ecc', 'eccentricity': 'Ecc',
+      'han': 'Han', 'handling': 'Han',
+      'kic': 'Kic', 'kicking': 'Kic',
+      'one': 'One', 'oneonones': 'One', '1v1': 'One',
+      'pun': 'Pun', 'punching': 'Pun', // tendencytopunch
+      'ref': 'Ref', 'reflexes': 'Ref',
+      'rus': 'Rus', 'rushingout': 'Rus', // rushingout(tendency)
+      'thr': 'Thr', 'throwing': 'Thr',
+      // Mental
+      'agg': 'Agg', 'aggression': 'Agg',
+      'ant': 'Ant', 'anticipation': 'Ant',
+      'bra': 'Bra', 'bravery': 'Bra',
+      'cmp': 'Cmp', 'composure': 'Cmp',
+      'cnt': 'Cnt', 'concentration': 'Cnt',
+      'dec': 'Dec', 'decisions': 'Dec',
+      'det': 'Det', 'determination': 'Det',
+      'fla': 'Fla', 'flair': 'Fla',
+      'ldr': 'Ldr', 'leadership': 'Ldr',
+      'off': 'Off', 'offtheball': 'Off', 'otb': 'Off',
+      'pos': 'Pos', 'positioning': 'Pos',
+      'tea': 'Tea', 'teamwork': 'Tea',
+      'vis': 'Vis', 'vision': 'Vis',
+      'wor': 'Wor', 'workrate': 'Wor',
+      // Physical
+      'acc': 'Acc', 'acceleration': 'Acc',
+      'agi': 'Agi', 'agility': 'Agi',
+      'bal': 'Bal', 'balance': 'Bal',
+      'jum': 'Jum', 'jumpingreach': 'Jum',
+      'nat': 'Nat', 'naturalfitness': 'Nat',
+      'pac': 'Pac', 'pace': 'Pac',
+      'sta': 'Sta', 'stamina': 'Sta',
+      'str': 'Str', 'strength': 'Str'
     };
 
     for (let i = startIndex; i < rows.length; i++) {
       const cells = Array.from(rows[i].querySelectorAll('td'));
+
       const getVal = (possibleKeys) => {
         if (!Array.isArray(possibleKeys)) possibleKeys = [possibleKeys];
         for (const key of possibleKeys) {
@@ -173,6 +200,11 @@ const parseHtmlTable = (htmlString) => {
           Position: getVal(['position', 'pos']),
           Club: getVal(['club', 'team']),
           Age: getVal(['age']),
+          // Thêm các trường phụ nếu có
+          'Height': getVal(['height']),
+          'Weight': getVal(['weight']),
+          'Preferred Foot': getVal(['preferredfoot', 'foot']),
+
           CA: getVal(['ca', 'currentability']) || '-',
           PA: getVal(['pa', 'potentialability']) || '-',
           Apps: getVal(['apps', 'appearances']) || 0,
@@ -203,22 +235,38 @@ const PlayerAvatar = ({ uid, name, size = "md", className = "" }) => {
   return <div className={`${sizeClasses[size] || sizeClasses.md} relative rounded overflow-hidden bg-slate-800 border border-slate-600 ${className}`}><img src={imageUrl} alt={name} className="w-full h-full object-cover" onError={() => setError(true)} loading="lazy" /></div>;
 };
 
-const RadarChart = ({ stats }) => {
+const RadarChart = ({ stats, position }) => {
   if (!stats) return null;
+  const isGK = position && position.includes('GK');
   const get = (key) => (stats[key] !== undefined ? stats[key] : 5);
-  const groups = [
-    { name: "ATT", val: (get('Fin') + get('Lon') + get('Off')) / 3 },
-    { name: "TEC", val: (get('Tec') + get('Dri') + get('Pas')) / 3 },
-    { name: "TAC", val: (get('Dec') + get('Ant') + get('Vis')) / 3 },
-    { name: "DEF", val: (get('Tck') + get('Mar') + get('Pos')) / 3 },
-    { name: "PHY", val: (get('Pac') + get('Acc') + get('Str')) / 3 },
-    { name: "CRE", val: (get('Fla') + get('Vis') + get('Cro')) / 3 }
-  ];
+
+  let groups;
+  if (isGK) {
+    groups = [
+      { name: "AER", val: get('Aer') }, // Aerial
+      { name: "DIS", val: (get('Kic') + get('Thr')) / 2 }, // Distribution
+      { name: "COM", val: (get('Cmd') + get('Com')) / 2 }, // Command
+      { name: "SHO", val: (get('Ref') + get('One') + get('Han')) / 3 }, // Shot Stopping
+      { name: "PHY", val: (get('Agi') + get('Bal') + get('Str')) / 3 }, // Physical
+      { name: "MEN", val: (get('Ant') + get('Pos') + get('Cnt')) / 3 }  // Mental
+    ];
+  } else {
+    groups = [
+      { name: "ATT", val: (get('Fin') + get('Lon') + get('Off')) / 3 },
+      { name: "TEC", val: (get('Tec') + get('Dri') + get('Pas')) / 3 },
+      { name: "TAC", val: (get('Dec') + get('Ant') + get('Vis')) / 3 },
+      { name: "DEF", val: (get('Tck') + get('Mar') + get('Pos')) / 3 },
+      { name: "PHY", val: (get('Pac') + get('Acc') + get('Str')) / 3 },
+      { name: "CRE", val: (get('Fla') + get('Vis') + get('Cro')) / 3 }
+    ];
+  }
+
   const size = 240; const center = size / 2; const radius = 90;
   const getPoint = (index, value) => { const angle = index * (Math.PI * 2) / 6 - Math.PI / 2; const dist = ((value || 5) / 20) * radius; return `${center + Math.cos(angle) * dist},${center + Math.sin(angle) * dist}`; };
   const points = groups.map((g, i) => getPoint(i, g.val)).join(' ');
   const bgPoints = groups.map((g, i) => getPoint(i, 20)).join(' ');
   const midPoints = groups.map((g, i) => getPoint(i, 10)).join(' ');
+
   return (
     <div className="flex flex-col items-center justify-center py-4">
       <svg width={size} height={size} className="overflow-visible filter drop-shadow-lg">
@@ -238,18 +286,23 @@ const RadarChart = ({ stats }) => {
 
 const AttributeBox = ({ label, value }) => {
   const val = value !== undefined ? value : '-';
-  let valColor = "text-slate-500"; let bgBar = "bg-transparent";
+  let valColor = "text-slate-500";
+  let bgBar = "bg-transparent";
+
   if (typeof val === 'number') {
     if (val >= 16) { valColor = "text-emerald-400 font-bold"; bgBar = "bg-emerald-500"; }
     else if (val >= 11) { valColor = "text-yellow-500 font-bold"; bgBar = "bg-yellow-500"; }
-    else if (val >= 1) { valColor = "text-slate-300"; bgBar = "bg-slate-600"; }
+    else if (val >= 6) { valColor = "text-slate-300 font-medium"; bgBar = "bg-slate-500"; }
+    else { valColor = "text-slate-500"; bgBar = "bg-slate-700"; }
   }
+
   return (
     <div className="flex justify-between items-center text-sm py-1 border-b border-slate-700/50 last:border-0 group hover:bg-slate-700/30 px-2 rounded transition">
       <span className="text-slate-400 font-medium group-hover:text-slate-200">{label}</span>
       <div className="flex items-center gap-2">
+        {/* Chỉ hiển thị thanh bar cho giá trị số */}
         {typeof val === 'number' && (
-          <div className="w-10 h-1.5 bg-slate-800 rounded-full overflow-hidden hidden sm:block border border-slate-700/50">
+          <div className="w-8 h-1.5 bg-slate-800 rounded-full overflow-hidden hidden sm:block border border-slate-700/50">
             <div className={`h-full ${bgBar}`} style={{ width: `${(Math.min(val, 20) / 20) * 100}%` }}></div>
           </div>
         )}
@@ -259,150 +312,34 @@ const AttributeBox = ({ label, value }) => {
   );
 };
 
-const PostCreator = ({ user }) => {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [type, setType] = useState("news");
-  const [files, setFiles] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef(null);
-  const textareaRef = useRef(null);
-
-  // Helper để chèn text vào vị trí con trỏ
-  const insertText = (before, after) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const newText = text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
-    setContent(newText);
-    // Set lại focus và vị trí con trỏ
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + before.length, end + before.length);
-    }, 0);
-  };
-
-  const processFiles = (fileList) => {
-    Array.from(fileList).forEach(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`File "${file.name}" quá lớn (>5MB). Vui lòng dùng link Google Drive hoặc nén lại.`);
-      } else {
-        const reader = new FileReader();
-        reader.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]);
-        reader.readAsDataURL(file);
-      }
-    });
-  };
-
+// --- COMPONENTS FOR POSTS & NEWSFEED (Giữ nguyên như cũ) ---
+const PostCreator = ({ user, onPostCreated }) => {
+  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [files, setFiles] = useState([]); const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null); const textareaRef = useRef(null);
+  const insertText = (before, after) => { const ta = textareaRef.current; if (!ta) return; const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value; setContent(t.substring(0, s) + before + t.substring(s, e) + after + t.substring(e)); setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, e + before.length); }, 0); };
+  const processFiles = (fileList) => { Array.from(fileList).forEach(file => { if (file.size > 5 * 1024 * 1024) alert(`File "${file.name}" > 5MB.`); else { const r = new FileReader(); r.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]); r.readAsDataURL(file); } }); };
   const handleFile = (e) => processFiles(e.target.files);
-
-  const handlePaste = (e) => {
-    const items = e.clipboardData.items;
-    const pastedFiles = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        pastedFiles.push(items[i].getAsFile());
-      }
-    }
-    if (pastedFiles.length > 0) {
-      e.preventDefault(); // Ngăn dán mặc định nếu là ảnh
-      processFiles(pastedFiles);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!title.trim()) return;
-    setSubmitting(true);
-    try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), {
-        title, content, type, files,
-        author: user.displayName || 'Ẩn danh',
-        authorId: user.uid,
-        createdAt: serverTimestamp(),
-        rating: 0, ratingCount: 0
-      });
-      setTitle(""); setContent(""); setFiles([]);
-    } catch (e) { console.error(e); alert("Lỗi đăng bài: " + e.message); }
-    setSubmitting(false);
-  }
-
-  const removeFile = (index) => {
-    setFiles(files.filter((_, i) => i !== index));
-  };
+  const handlePaste = (e) => { const items = e.clipboardData.items; const pasted = []; for (let i = 0; i < items.length; i++) if (items[i].type.indexOf('image') !== -1) pasted.push(items[i].getAsFile()); if (pasted.length > 0) { e.preventDefault(); processFiles(pasted); } };
+  const handleSubmit = async () => { if (!title.trim()) return; setSubmitting(true); try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), { title, content, type, files, author: user.displayName || 'Ẩn danh', authorId: user.uid, createdAt: serverTimestamp(), rating: 0, ratingCount: 0 }); setTitle(""); setContent(""); setFiles([]); } catch (e) { console.error(e); } setSubmitting(false); };
+  const removeFile = (idx) => setFiles(files.filter((_, i) => i !== idx));
 
   return (
     <div className="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
       <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={20} /> Tạo bài viết mới</h3>
-
-      <input
-        className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition"
-        placeholder="Tiêu đề..."
-        value={title} onChange={e => setTitle(e.target.value)}
-      />
-
+      <input className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition" placeholder="Tiêu đề..." value={title} onChange={e => setTitle(e.target.value)} />
       <div className="flex gap-2 mb-3 items-center bg-slate-900 p-2 rounded-lg border border-slate-600">
-        <select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500">
-          <option value="news">Tin tức</option>
-          <option value="tip">Chiến thuật</option>
-          <option value="review">Review</option>
-        </select>
+        <select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500"><option value="news">Tin tức</option><option value="tip">Chiến thuật</option><option value="review">Review</option></select>
         <div className="h-4 w-[1px] bg-slate-600 mx-2"></div>
-
-        {/* Text Formatting Buttons */}
         <button onClick={() => insertText('**', '**')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In đậm"><Bold size={16} /></button>
         <button onClick={() => insertText('*', '*')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In nghiêng"><Italic size={16} /></button>
         <button onClick={() => insertText('## ', '')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Tiêu đề"><Type size={16} /></button>
-
         <div className="flex-grow"></div>
-
-        <button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition" title="Đính kèm file (Max 5MB)">
-          <Paperclip size={14} /> Đính kèm / Dán ảnh
-        </button>
+        <button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition"><Paperclip size={14} /> Đính kèm</button>
         <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFile} />
       </div>
-
-      <textarea
-        ref={textareaRef}
-        className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition"
-        placeholder="Nội dung... (Bạn có thể Ctrl+V để dán ảnh trực tiếp)"
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        onPaste={handlePaste}
-      />
-
-      {/* File Preview */}
-      {files.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {files.map((f, i) => (
-            <div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">
-              {f.type.startsWith('image') ? (
-                <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" alt="preview" />
-              ) : (
-                <FileText className="text-slate-400" size={24} />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-slate-300 truncate">{f.name}</p>
-                <p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p>
-              </div>
-              <button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md">
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex justify-end">
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50"
-        >
-          {submitting ? 'Đang đăng...' : 'Đăng bài'}
-        </button>
-      </div>
+      <textarea ref={textareaRef} className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition" placeholder="Nội dung... (Ctrl+V để dán ảnh)" value={content} onChange={e => setContent(e.target.value)} onPaste={handlePaste} />
+      {files.length > 0 && <div className="mb-4 flex flex-wrap gap-2">{files.map((f, i) => (<div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">{f.type.startsWith('image') ? <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" /> : <FileText className="text-slate-400" size={24} />}<div className="flex-1 min-w-0"><p className="text-xs text-slate-300 truncate">{f.name}</p><p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p></div><button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md"><Trash2 size={12} /></button></div>))}</div>}
+      <div className="flex justify-end"><button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50">{submitting ? 'Đang đăng...' : 'Đăng bài'}</button></div>
     </div>
   )
 }
@@ -417,49 +354,20 @@ const NewsFeed = ({ user }) => {
   return (
     <div className="max-w-4xl mx-auto p-6">
       {user && <PostCreator user={user} />}
-      <div className="space-y-6">
-        {posts.map(post => (
-          <div key={post.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500/50 transition group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-emerald-400 font-bold border border-slate-600">{post.author?.[0]?.toUpperCase() || 'U'}</div><div><p className="font-bold text-slate-200 text-sm">{post.author}</p><p className="text-xs text-slate-400">{post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString() : 'Vừa xong'}</p></div></div>
-              <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border border-slate-600">{post.type}</span>
-            </div>
-            <h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3>
-            <div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>
-
-            {/* Display Attachments */}
-            {post.files && post.files.length > 0 && (
-              <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {post.files.map((f, i) => (
-                  <div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">
-                    {f.type.startsWith('image') ? (
-                      <div className="aspect-video relative">
-                        <img src={f.data} alt="attachment" className="w-full h-full object-cover hover:scale-105 transition duration-500" />
-                        <a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition">
-                          <Download className="text-white" />
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="p-3 flex items-center gap-3">
-                        <FileText className="text-slate-400" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-200 truncate">{f.name}</p>
-                          <p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p>
-                        </div>
-                        <a href={f.data} download={f.name} className="text-emerald-500 hover:text-emerald-400"><Download size={16} /></a>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-4 pt-4 border-t border-slate-700"><RatingSystem postId={post.id} initialRating={post.rating} initialCount={post.ratingCount} user={user} /><div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> Bình luận</div></div>
-            <CommentSection postId={post.id} user={user} />
+      <div className="space-y-6">{posts.map(post => (
+        <div key={post.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500/50 transition group">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-emerald-400 font-bold border border-slate-600">{post.author?.[0]?.toUpperCase() || 'U'}</div><div><p className="font-bold text-slate-200 text-sm">{post.author}</p><p className="text-xs text-slate-400">{post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString() : 'Vừa xong'}</p></div></div>
+            <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border border-slate-600">{post.type}</span>
           </div>
-        ))}
-        {posts.length === 0 && <p className="text-center text-slate-500">Chưa có bài viết nào.</p>}
-      </div>
+          <h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3>
+          <div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>
+          {post.files?.length > 0 && <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">{post.files.map((f, i) => (<div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">{f.type.startsWith('image') ? <div className="aspect-video relative"><img src={f.data} className="w-full h-full object-cover" /><a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition"><Download className="text-white" /></a></div> : <div className="p-3 flex items-center gap-3"><FileText className="text-slate-400" /><div className="flex-1 min-w-0"><p className="text-xs font-medium text-slate-200 truncate">{f.name}</p></div><a href={f.data} download={f.name} className="text-emerald-500"><Download size={16} /></a></div>}</div>))}</div>}
+          <div className="flex items-center gap-4 pt-4 border-t border-slate-700"><RatingSystem postId={post.id} initialRating={post.rating} initialCount={post.ratingCount} user={user} /><div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> Bình luận</div></div>
+          <CommentSection postId={post.id} user={user} />
+        </div>
+      ))}
+        {posts.length === 0 && <p className="text-center text-slate-500">Chưa có bài viết nào.</p>}</div>
     </div>
   );
 };
@@ -504,23 +412,143 @@ const DatabaseView = () => {
       </div>
       {selected && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={() => setSelected(null)}>
-          <div className="bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto border border-slate-600 relative" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-slate-800 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto border border-slate-600 relative" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setSelected(null)} className="absolute top-4 right-4 p-2 bg-slate-700 hover:bg-red-600 rounded-full text-white transition z-20 shadow-lg"><X size={24} /></button>
+            {/* Header - Profile */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-slate-700 relative">
-              <div className="flex-shrink-0"><PlayerAvatar uid={selected.UID} name={selected.Name} size="lg" className="shadow-2xl ring-4 ring-slate-700" /></div>
-              <div className="flex-grow text-center md:text-left"><h2 className="text-4xl font-black text-white mb-2">{selected.Name}</h2><div className="flex flex-wrap gap-3 justify-center md:justify-start text-sm text-slate-300 mb-4"><span className="flex items-center gap-1"><Shield size={14} className="text-emerald-400" /> {selected.Club}</span><span className="bg-slate-700 px-2 py-0.5 rounded border border-slate-600 text-slate-200 font-mono">{selected.Position}</span><span>{selected.Age} tuổi</span></div>
-                <div className="flex gap-4 justify-center md:justify-start">
-                  <div className="bg-slate-900/50 px-4 py-2 rounded border border-slate-700 text-center min-w-[80px]"><div className="text-xs text-slate-500 uppercase font-bold">CA</div><div className="text-xl font-black text-emerald-400">{selected.CA || '-'}</div></div>
-                  <div className="bg-slate-900/50 px-4 py-2 rounded border border-slate-700 text-center min-w-[80px]"><div className="text-xs text-slate-500 uppercase font-bold">PA</div><div className="text-xl font-black text-purple-400">{selected.PA || '-'}</div></div>
-                  <div className="bg-slate-900/50 px-4 py-2 rounded border border-slate-700 text-center min-w-[100px]"><div className="text-xs text-slate-500 uppercase font-bold">Giá trị</div><div className="text-sm font-bold text-slate-200 mt-1">{selected['Transfer Value'] || '-'}</div></div>
+              <div className="flex-shrink-0"><PlayerAvatar uid={selected.UID} name={selected.Name} size="xl" className="shadow-2xl ring-4 ring-slate-700" /></div>
+              <div className="flex-grow text-center md:text-left w-full">
+                <h2 className="text-4xl font-black text-white mb-1 flex items-center justify-center md:justify-start gap-3">{selected.Name} <span className="text-base font-normal text-slate-400 bg-slate-700 px-2 rounded border border-slate-600">{selected.Position}</span></h2>
+                <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm text-slate-300 mb-6">
+                  <span className="flex items-center gap-1"><Shield size={16} className="text-emerald-400" /> {selected.Club}</span>
+                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+                  <span>{selected.Age} tuổi</span>
+                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+                  <span>{selected['Height'] || '-'}</span>
+                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+                  <span>{selected['Weight'] || '-'}</span>
+                  <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
+                  <span>{selected['Preferred Foot'] || '-'}</span>
+                </div>
+                <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 min-w-[80px] text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">CA</div><div className="text-2xl font-black text-emerald-400">{selected.CA || '-'}</div></div>
+                  <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 min-w-[80px] text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">PA</div><div className="text-2xl font-black text-purple-400">{selected.PA || '-'}</div></div>
+                  <div className="bg-slate-900/60 px-6 py-2 rounded-lg border border-slate-700 text-center"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Giá trị</div><div className="text-lg font-bold text-white mt-1">{selected['Transfer Value'] || '-'}</div></div>
                 </div>
               </div>
-              <div className="flex-shrink-0 w-48 h-48 hidden md:flex items-center justify-center bg-slate-900/30 rounded-xl border border-slate-700/50"><RadarChart stats={selected.Stats} /></div>
+              <div className="flex-shrink-0 hidden md:block bg-slate-900/30 p-4 rounded-xl border border-slate-700/50"><RadarChart stats={selected.Stats} position={selected.Position} /></div>
             </div>
-            <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-800">
-              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider">Technical</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Corners" value={selected.Stats.Cor} /><AttributeBox label="Crossing" value={selected.Stats.Cro} /><AttributeBox label="Dribbling" value={selected.Stats.Dri} /><AttributeBox label="Finishing" value={selected.Stats.Fin} /><AttributeBox label="First Touch" value={selected.Stats.Fir} /><AttributeBox label="Free Kicks" value={selected.Stats.Fre} /><AttributeBox label="Heading" value={selected.Stats.Hea} /><AttributeBox label="Long Shots" value={selected.Stats.Lon} /><AttributeBox label="Long Throws" value={selected.Stats.LTh} /><AttributeBox label="Marking" value={selected.Stats.Mar} /><AttributeBox label="Passing" value={selected.Stats.Pas} /><AttributeBox label="Penalty Taking" value={selected.Stats.Pen} /><AttributeBox label="Tackling" value={selected.Stats.Tck} /><AttributeBox label="Technique" value={selected.Stats.Tec} /></div>}</div>
-              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider">Mental</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Aggression" value={selected.Stats.Agg} /><AttributeBox label="Anticipation" value={selected.Stats.Ant} /><AttributeBox label="Bravery" value={selected.Stats.Bra} /><AttributeBox label="Composure" value={selected.Stats.Cmp} /><AttributeBox label="Concentration" value={selected.Stats.Cnt} /><AttributeBox label="Decisions" value={selected.Stats.Dec} /><AttributeBox label="Determination" value={selected.Stats.Det} /><AttributeBox label="Flair" value={selected.Stats.Fla} /><AttributeBox label="Leadership" value={selected.Stats.Ldr} /><AttributeBox label="Off the Ball" value={selected.Stats.Off} /><AttributeBox label="Positioning" value={selected.Stats.Pos} /><AttributeBox label="Teamwork" value={selected.Stats.Tea} /><AttributeBox label="Vision" value={selected.Stats.Vis} /><AttributeBox label="Work Rate" value={selected.Stats.Wor} /></div>}</div>
-              <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50"><h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider">Physical</h3>{selected.Stats && <div className="space-y-1"><AttributeBox label="Acceleration" value={selected.Stats.Acc} /><AttributeBox label="Agility" value={selected.Stats.Agi} /><AttributeBox label="Balance" value={selected.Stats.Bal} /><AttributeBox label="Jumping Reach" value={selected.Stats.Jum} /><AttributeBox label="Natural Fitness" value={selected.Stats.Nat} /><AttributeBox label="Pace" value={selected.Stats.Pac} /><AttributeBox label="Stamina" value={selected.Stats.Sta} /><AttributeBox label="Strength" value={selected.Stats.Str} /></div>}</div>
+
+            {/* Body - Attributes */}
+            <div className="p-8 bg-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {selected.Position && selected.Position.includes('GK') ? (
+                // Giao diện cho Thủ môn (GK)
+                <>
+                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider flex justify-between">Goalkeeping</h3>
+                    {selected.Stats && <div className="space-y-1">
+                      <AttributeBox label="Aerial Reach" value={selected.Stats.Aer} />
+                      <AttributeBox label="Command of Area" value={selected.Stats.Cmd} />
+                      <AttributeBox label="Communication" value={selected.Stats.Com} />
+                      <AttributeBox label="Eccentricity" value={selected.Stats.Ecc} />
+                      <AttributeBox label="Handling" value={selected.Stats.Han} />
+                      <AttributeBox label="Kicking" value={selected.Stats.Kic} />
+                      <AttributeBox label="One on Ones" value={selected.Stats.One} />
+                      <AttributeBox label="Reflexes" value={selected.Stats.Ref} />
+                      <AttributeBox label="Rushing Out" value={selected.Stats.Rus} />
+                      <AttributeBox label="Punching" value={selected.Stats.Pun} />
+                      <AttributeBox label="Throwing" value={selected.Stats.Thr} />
+                    </div>}
+                  </div>
+                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider flex justify-between">Mental</h3>
+                    {selected.Stats && <div className="space-y-1">
+                      <AttributeBox label="Aggression" value={selected.Stats.Agg} />
+                      <AttributeBox label="Anticipation" value={selected.Stats.Ant} />
+                      <AttributeBox label="Bravery" value={selected.Stats.Bra} />
+                      <AttributeBox label="Composure" value={selected.Stats.Cmp} />
+                      <AttributeBox label="Concentration" value={selected.Stats.Cnt} />
+                      <AttributeBox label="Decisions" value={selected.Stats.Dec} />
+                      <AttributeBox label="Determination" value={selected.Stats.Det} />
+                      <AttributeBox label="Flair" value={selected.Stats.Fla} />
+                      <AttributeBox label="Leadership" value={selected.Stats.Ldr} />
+                      <AttributeBox label="Off the Ball" value={selected.Stats.Off} />
+                      <AttributeBox label="Positioning" value={selected.Stats.Pos} />
+                      <AttributeBox label="Teamwork" value={selected.Stats.Tea} />
+                      <AttributeBox label="Vision" value={selected.Stats.Vis} />
+                      <AttributeBox label="Work Rate" value={selected.Stats.Wor} />
+                    </div>}
+                  </div>
+                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider flex justify-between">Physical</h3>
+                    {selected.Stats && <div className="space-y-1">
+                      <AttributeBox label="Acceleration" value={selected.Stats.Acc} />
+                      <AttributeBox label="Agility" value={selected.Stats.Agi} />
+                      <AttributeBox label="Balance" value={selected.Stats.Bal} />
+                      <AttributeBox label="Jumping Reach" value={selected.Stats.Jum} />
+                      <AttributeBox label="Natural Fitness" value={selected.Stats.Nat} />
+                      <AttributeBox label="Pace" value={selected.Stats.Pac} />
+                      <AttributeBox label="Stamina" value={selected.Stats.Sta} />
+                      <AttributeBox label="Strength" value={selected.Stats.Str} />
+                    </div>}
+                  </div>
+                </>
+              ) : (
+                // Giao diện cho Cầu thủ thường
+                <>
+                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-emerald-400 uppercase text-xs tracking-wider flex justify-between">Technical</h3>
+                    {selected.Stats && <div className="space-y-1">
+                      <AttributeBox label="Corners" value={selected.Stats.Cor} />
+                      <AttributeBox label="Crossing" value={selected.Stats.Cro} />
+                      <AttributeBox label="Dribbling" value={selected.Stats.Dri} />
+                      <AttributeBox label="Finishing" value={selected.Stats.Fin} />
+                      <AttributeBox label="First Touch" value={selected.Stats.Fir} />
+                      <AttributeBox label="Free Kicks" value={selected.Stats.Fre} />
+                      <AttributeBox label="Heading" value={selected.Stats.Hea} />
+                      <AttributeBox label="Long Shots" value={selected.Stats.Lon} />
+                      <AttributeBox label="Long Throws" value={selected.Stats.LTh} />
+                      <AttributeBox label="Marking" value={selected.Stats.Mar} />
+                      <AttributeBox label="Passing" value={selected.Stats.Pas} />
+                      <AttributeBox label="Penalty Taking" value={selected.Stats.Pen} />
+                      <AttributeBox label="Tackling" value={selected.Stats.Tck} />
+                      <AttributeBox label="Technique" value={selected.Stats.Tec} />
+                    </div>}
+                  </div>
+                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-yellow-500 uppercase text-xs tracking-wider flex justify-between">Mental</h3>
+                    {selected.Stats && <div className="space-y-1">
+                      <AttributeBox label="Aggression" value={selected.Stats.Agg} />
+                      <AttributeBox label="Anticipation" value={selected.Stats.Ant} />
+                      <AttributeBox label="Bravery" value={selected.Stats.Bra} />
+                      <AttributeBox label="Composure" value={selected.Stats.Cmp} />
+                      <AttributeBox label="Concentration" value={selected.Stats.Cnt} />
+                      <AttributeBox label="Decisions" value={selected.Stats.Dec} />
+                      <AttributeBox label="Determination" value={selected.Stats.Det} />
+                      <AttributeBox label="Flair" value={selected.Stats.Fla} />
+                      <AttributeBox label="Leadership" value={selected.Stats.Ldr} />
+                      <AttributeBox label="Off the Ball" value={selected.Stats.Off} />
+                      <AttributeBox label="Positioning" value={selected.Stats.Pos} />
+                      <AttributeBox label="Teamwork" value={selected.Stats.Tea} />
+                      <AttributeBox label="Vision" value={selected.Stats.Vis} />
+                      <AttributeBox label="Work Rate" value={selected.Stats.Wor} />
+                    </div>}
+                  </div>
+                  <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <h3 className="font-bold border-b border-slate-700 mb-4 pb-2 text-blue-400 uppercase text-xs tracking-wider flex justify-between">Physical</h3>
+                    {selected.Stats && <div className="space-y-1">
+                      <AttributeBox label="Acceleration" value={selected.Stats.Acc} />
+                      <AttributeBox label="Agility" value={selected.Stats.Agi} />
+                      <AttributeBox label="Balance" value={selected.Stats.Bal} />
+                      <AttributeBox label="Jumping Reach" value={selected.Stats.Jum} />
+                      <AttributeBox label="Natural Fitness" value={selected.Stats.Nat} />
+                      <AttributeBox label="Pace" value={selected.Stats.Pac} />
+                      <AttributeBox label="Stamina" value={selected.Stats.Sta} />
+                      <AttributeBox label="Strength" value={selected.Stats.Str} />
+                    </div>}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
