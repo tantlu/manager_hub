@@ -1,4 +1,36 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+// Firebase Imports
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAnalytics } from "firebase/analytics";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signOut,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
+} from 'firebase/auth';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  doc,
+  writeBatch,
+  getDocs,
+  limit,
+  startAfter,
+  updateDoc,
+  increment,
+  where,
+  deleteDoc
+} from 'firebase/firestore';
+// Icons
 import {
   Search, Database, Newspaper, User, LogOut, PlusCircle,
   Download, Trophy, TrendingUp, Shield, Activity, FileUp,
@@ -6,7 +38,8 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home, Globe, Crown, Calendar
+  ChevronRight, Share2, Home, Globe, Hand, Footprints,
+  Calendar, Medal, Plus, Crown
 } from 'lucide-react';
 
 // --- CONFIG & MOCK DATA ---
@@ -18,23 +51,6 @@ const CURRENT_USER = {
   avatar: null
 };
 
-const SAMPLE_POSTS = [
-  {
-    id: 1,
-    title: "Tổng kết mùa giải 2024: Cú ăn ba lịch sử!",
-    content: "Một mùa giải không thể tin nổi! Chúng ta đã vô địch League, Cup và cả Champions League. \n\n**Mbappe** thực sự là một con quái vật với 52 bàn thắng.",
-    type: "review",
-    author: "tencuto",
-    createdAt: new Date().toISOString(),
-    rating: 4.8,
-    ratingCount: 15,
-    comments: [
-      { id: 1, author: "fan_ham_mo", content: "Đội hình quá khủng!", createdAt: new Date().toISOString() }
-    ],
-    files: []
-  }
-];
-
 // --- UTILS ---
 const renderRichText = (text) => {
   if (!text) return null;
@@ -42,12 +58,6 @@ const renderRichText = (text) => {
     .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
     .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
-};
-
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024; const sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -139,7 +149,7 @@ const parseHtmlTable = (htmlString) => {
   } catch (e) { console.error("Parse Error:", e); return []; }
 };
 
-// --- UI COMPONENTS ---
+// --- COMPONENTS ---
 const PlayerAvatar = ({ uid, name, size = "md", className = "" }) => {
   const [error, setError] = useState(false);
   const sizeClasses = { sm: "w-8 h-8 text-xs", md: "w-12 h-12 text-sm", lg: "w-32 h-32 text-3xl", xl: "w-48 h-48 text-5xl" };
@@ -213,19 +223,31 @@ const AttributeBox = ({ label, value }) => {
   );
 };
 
-const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500" }) => {
-  const percent = max > 0 ? (value / max) * 100 : 0;
+// --- NEW COMPONENT: TABLE STAT BAR (For List View) ---
+const TableStatBar = ({ value, max = 20, colorMap = true }) => {
+  if (value === undefined || value === '-' || value === 0) return <span className="text-slate-500">-</span>;
+
+  let color = "bg-slate-600";
+  if (colorMap) {
+    if (value >= 16) color = "bg-emerald-500";
+    else if (value >= 11) color = "bg-yellow-500";
+    else color = "bg-slate-500";
+  }
+
+  // Scale max to make bars visible (e.g. for attributes max is 20)
+  const percent = Math.min((value / max) * 100, 100);
+
   return (
-    <div className="flex items-center gap-2 w-24">
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-        <div className={`h-full ${colorClass}`} style={{ width: `${percent}%` }}></div>
+    <div className="flex items-center gap-2 w-full max-w-[60px]">
+      <span className={`text-xs font-bold w-5 text-right ${value >= 11 ? 'text-white' : 'text-slate-400'}`}>{value}</span>
+      <div className="flex-1 h-1.5 bg-slate-800 rounded-sm overflow-hidden border border-slate-700/50">
+        <div className={`h-full ${color}`} style={{ width: `${percent}%` }}></div>
       </div>
-      <span className={`text-xs font-bold w-8 text-right ${value > 0 ? 'text-white' : 'text-slate-600'}`}>{value}</span>
     </div>
   );
 };
 
-// --- MODALS ---
+// --- SHARED MODAL ---
 const PlayerDetailModal = ({ selected, onClose }) => {
   if (!selected) return null;
   const isGK = selected.Position && selected.Position.includes('GK');
@@ -284,6 +306,217 @@ const PlayerDetailModal = ({ selected, onClose }) => {
     </div>
   );
 };
+
+// --- SEASON MANAGER & STORY ---
+const StoryMode = ({ user }) => {
+  const [seasons, setSeasons] = useState([]);
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [newSeasonName, setNewSeasonName] = useState('');
+  const [cupsWon, setCupsWon] = useState({ league: false, cup: false, cl: false });
+  const [isCreating, setIsCreating] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  // Local Storage Persistence
+  useEffect(() => {
+    const savedSeasons = localStorage.getItem('managerhub_seasons');
+    if (savedSeasons) {
+      setSeasons(JSON.parse(savedSeasons));
+    }
+  }, []);
+
+  // Save to Local Storage whenever seasons change
+  useEffect(() => {
+    localStorage.setItem('managerhub_seasons', JSON.stringify(seasons));
+  }, [seasons]);
+
+  const handleCreateSeason = async (e) => {
+    e.preventDefault();
+    const file = e.target.files[0];
+    if (!file || !newSeasonName) return alert("Vui lòng nhập tên mùa giải và chọn file.");
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const parsedData = parseHtmlTable(ev.target.result);
+      if (parsedData.length === 0) return alert("Lỗi đọc file hoặc file trống.");
+
+      const newSeason = {
+        id: Date.now(),
+        name: newSeasonName,
+        cups: cupsWon,
+        players: JSON.parse(JSON.stringify(parsedData)),
+        createdAt: new Date().toISOString()
+      };
+
+      setSeasons(prev => [newSeason, ...prev]);
+      setIsCreating(false);
+      setNewSeasonName('');
+      setCupsWon({ league: false, cup: false, cl: false });
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDeleteSeason = (e, seasonId) => {
+    e.stopPropagation();
+    if (window.confirm("Bạn có chắc muốn xóa mùa giải này?")) {
+      setSeasons(prev => prev.filter(s => s.id !== seasonId));
+      if (selectedSeason && selectedSeason.id === seasonId) setSelectedSeason(null);
+    }
+  }
+
+  const getTrophyCount = () => {
+    let total = 0;
+    seasons.forEach(s => {
+      if (s.cups?.league) total++;
+      if (s.cups?.cup) total++;
+      if (s.cups?.cl) total++;
+    });
+    return total;
+  };
+
+  const getMaxStats = (players) => ({
+    apps: Math.max(...players.map(p => p.Apps || 0), 1),
+    gls: Math.max(...players.map(p => p.Gls || 0), 1)
+  });
+
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      {/* Dashboard Header */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-2xl mb-8 shadow-xl border border-slate-700 flex flex-col md:flex-row justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3">
+            <Trophy className="text-yellow-500" size={32} /> Phòng Truyền Thống
+          </h2>
+          <p className="text-slate-400">Tổng số danh hiệu: <span className="text-yellow-400 font-bold text-xl">{getTrophyCount()}</span></p>
+        </div>
+        <button onClick={() => setIsCreating(!isCreating)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2">
+          {isCreating ? <X size={20} /> : <PlusCircle size={20} />} {isCreating ? 'Hủy Bỏ' : 'Thêm Mùa Giải Mới'}
+        </button>
+      </div>
+
+      {/* Create Season Form */}
+      {isCreating && (
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 mb-8 animate-in fade-in slide-in-from-top-4 relative overflow-hidden">
+          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Calendar size={20} className="text-emerald-400" /> Tạo Mùa Giải Mới</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm text-slate-400 mb-2 font-bold uppercase">Tên mùa giải</label>
+              <input className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-emerald-500" value={newSeasonName} onChange={e => setNewSeasonName(e.target.value)} placeholder="VD: 2024-2025" />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-2 font-bold uppercase">Danh hiệu đạt được</label>
+              <div className="flex gap-3 flex-wrap">
+                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.league ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={cupsWon.league} onChange={() => setCupsWon({ ...cupsWon, league: !cupsWon.league })} />
+                  <Crown size={16} /> League
+                </label>
+                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.cup ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={cupsWon.cup} onChange={() => setCupsWon({ ...cupsWon, cup: !cupsWon.cup })} />
+                  <Trophy size={16} /> Cup
+                </label>
+                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.cl ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={cupsWon.cl} onChange={() => setCupsWon({ ...cupsWon, cl: !cupsWon.cl })} />
+                  <Globe size={16} /> Continental
+                </label>
+              </div>
+            </div>
+          </div>
+          <label className="block w-full border-2 border-dashed border-slate-600 bg-slate-900/50 hover:bg-slate-900 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition group">
+            <UploadCloud className="mx-auto text-slate-400 group-hover:text-emerald-500 mb-2" size={32} />
+            <span className="text-slate-400 group-hover:text-white font-medium block">Click để chọn file story.html</span>
+            <span className="text-xs text-slate-500 mt-1">File export từ view cầu thủ (phải có Apps, Goals, Av Rat)</span>
+            <input type="file" className="hidden" accept=".html" onChange={handleCreateSeason} />
+          </label>
+        </div>
+      )}
+
+      {/* Season Cards */}
+      {!selectedSeason && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {seasons.map(season => (
+            <div key={season.id} className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition group cursor-pointer relative overflow-hidden" onClick={() => setSelectedSeason(season)}>
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110 duration-500">
+                <Trophy size={80} className="text-emerald-500" />
+              </div>
+              <div className="flex justify-between items-start">
+                <h3 className="text-xl font-black text-white mb-4 tracking-tight">{season.name}</h3>
+                <button onClick={(e) => handleDeleteSeason(e, season.id)} className="text-slate-600 hover:text-red-500 p-1 transition z-10"><Trash2 size={16} /></button>
+              </div>
+
+              <div className="flex gap-2 mb-8">
+                {season.cups?.league && <span className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded text-xs font-bold border border-yellow-500/30 flex items-center gap-1" title="League Winner"><Crown size={12} /></span>}
+                {season.cups?.cup && <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-xs font-bold border border-blue-500/30 flex items-center gap-1" title="Cup Winner"><Trophy size={12} /></span>}
+                {season.cups?.cl && <span className="bg-purple-500/10 text-purple-400 px-2 py-1 rounded text-xs font-bold border border-purple-500/30 flex items-center gap-1" title="Continental Winner"><Globe size={12} /></span>}
+                {!season.cups?.league && !season.cups?.cup && !season.cups?.cl && <span className="text-slate-600 text-xs italic">Trắng tay</span>}
+              </div>
+              <div className="flex justify-between items-center text-sm text-slate-400 pt-4 border-t border-slate-700/50">
+                <span className="flex items-center gap-1"><User size={14} /> {season.players?.length || 0} cầu thủ</span>
+                <span className="text-emerald-500 font-bold group-hover:translate-x-1 transition flex items-center gap-1">Chi tiết <ChevronRight size={14} /></span>
+              </div>
+            </div>
+          ))}
+          {seasons.length === 0 && !isCreating && (
+            <div className="col-span-full text-center py-16 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed">
+              <Activity size={48} className="mx-auto text-slate-600 mb-4" />
+              <p className="text-slate-400">Chưa có dữ liệu mùa giải nào.</p>
+              <button onClick={() => setIsCreating(true)} className="text-emerald-500 font-bold mt-2 hover:underline">Tạo mùa giải đầu tiên</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detail View - Player List */}
+      {selectedSeason && (
+        <div className="animate-in fade-in slide-in-from-right-4">
+          <div className="flex items-center justify-between mb-6">
+            <button onClick={() => setSelectedSeason(null)} className="flex items-center gap-2 text-slate-400 hover:text-white transition bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
+              <ChevronRight className="rotate-180" size={16} /> Quay lại
+            </button>
+            <h3 className="font-bold text-white text-xl">{selectedSeason.name} <span className="text-slate-500 font-normal text-sm ml-2">| Danh sách cầu thủ</span></h3>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-700">
+                  <tr>
+                    <th className="p-4 w-16 pl-6">Info</th>
+                    <th className="p-4">Tên cầu thủ</th>
+                    <th className="p-4 w-28">Vị trí</th>
+                    <th className="p-4 w-16 text-center">Tuổi</th>
+                    <th className="p-4 w-32">Apps</th>
+                    <th className="p-4 w-32">Goals</th>
+                    <th className="p-4 w-20 text-center">Ast</th>
+                    <th className="p-4 w-24 text-right pr-6">Av Rat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {selectedSeason.players.map((p, i) => (
+                    <tr key={i} className="hover:bg-slate-700/40 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                      <td className="p-4 pl-6"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td>
+                      <td className="p-4 font-bold text-white group-hover:text-emerald-400 transition text-base">{p.Name}</td>
+                      <td className="p-4 text-slate-400 text-xs font-mono bg-slate-900/20 rounded px-2">{p.Position}</td>
+                      <td className="p-4 text-center text-slate-500">{p.Age}</td>
+                      <td className="p-4"><TableStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorMap={false} /></td>
+                      <td className="p-4"><TableStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorMap={true} /></td>
+                      <td className="p-4 text-center text-slate-300 font-medium">{p.Ast || '-'}</td>
+                      <td className="p-4 text-right pr-6">
+                        <div className={`inline-block px-2 py-1 rounded text-xs font-bold border ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
+                          {p["Av Rat"]}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Detail */}
+      <PlayerDetailModal selected={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+    </div>
+  );
+}
 
 // --- POST CREATOR & FEED (LOCAL STORAGE) ---
 const PostCreator = ({ user, onPostCreated }) => {
@@ -402,92 +635,15 @@ const DatabaseView = ({ players }) => {
   );
 };
 
-// --- SEASON MANAGER ---
-const StoryMode = ({ user }) => {
-  const [seasons, setSeasons] = useState([]);
-  const [selectedSeason, setSelectedSeason] = useState(null);
-  const [newSeasonName, setNewSeasonName] = useState('');
-  const [cupsWon, setCupsWon] = useState({ league: false, cup: false, cl: false });
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-
-  useEffect(() => { const saved = localStorage.getItem('managerhub_seasons'); if (saved) setSeasons(JSON.parse(saved)); }, []);
-  useEffect(() => { localStorage.setItem('managerhub_seasons', JSON.stringify(seasons)); }, [seasons]);
-
-  const handleCreateSeason = (e) => {
-    const file = e.target.files[0]; if (!file || !newSeasonName) return alert("Nhập tên & chọn file!");
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const parsedData = parseHtmlTable(ev.target.result);
-      if (parsedData.length === 0) return alert("File lỗi.");
-      const newSeason = { id: Date.now(), name: newSeasonName, cups: cupsWon, players: parsedData, createdAt: new Date().toISOString() };
-      setSeasons([newSeason, ...seasons]); setIsCreating(false); setNewSeasonName(''); setCupsWon({ league: false, cup: false, cl: false });
-    };
-    reader.readAsText(file);
-  };
-
-  const handleDeleteSeason = (e, id) => { e.stopPropagation(); if (window.confirm("Xóa mùa giải này?")) setSeasons(seasons.filter(s => s.id !== id)); };
-  const getTrophyCount = () => seasons.reduce((acc, s) => acc + (s.cups.league ? 1 : 0) + (s.cups.cup ? 1 : 0) + (s.cups.cl ? 1 : 0), 0);
-  const getMaxStats = (players) => ({ apps: Math.max(...players.map(p => p.Apps || 0), 1), gls: Math.max(...players.map(p => p.Gls || 0), 1) });
-
-  return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-2xl mb-8 shadow-xl border border-slate-700 flex flex-col md:flex-row justify-between items-center">
-        <div><h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3"><Trophy className="text-yellow-500" size={32} /> Phòng Truyền Thống</h2><p className="text-slate-400">Tổng danh hiệu: <span className="text-yellow-400 font-bold text-xl">{getTrophyCount()}</span></p></div>
-        <button onClick={() => setIsCreating(!isCreating)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2">{isCreating ? <X size={20} /> : <PlusCircle size={20} />} {isCreating ? 'Hủy Bỏ' : 'Thêm Mùa Giải'}</button>
-      </div>
-      {isCreating && (
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 mb-8 animate-in fade-in slide-in-from-top-4">
-          <h3 className="text-xl font-bold text-white mb-4">Tạo Mùa Giải Mới</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div><label className="block text-sm text-slate-400 mb-2 font-bold uppercase">Tên mùa giải</label><input className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-emerald-500" value={newSeasonName} onChange={e => setNewSeasonName(e.target.value)} placeholder="VD: 2024-2025" /></div>
-            <div><label className="block text-sm text-slate-400 mb-2 font-bold uppercase">Danh hiệu</label><div className="flex gap-3 flex-wrap"><label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.league ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}><input type="checkbox" className="hidden" checked={cupsWon.league} onChange={() => setCupsWon({ ...cupsWon, league: !cupsWon.league })} /><Crown size={16} /> League</label><label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.cup ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}><input type="checkbox" className="hidden" checked={cupsWon.cup} onChange={() => setCupsWon({ ...cupsWon, cup: !cupsWon.cup })} /><Trophy size={16} /> Cup</label><label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.cl ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}><input type="checkbox" className="hidden" checked={cupsWon.cl} onChange={() => setCupsWon({ ...cupsWon, cl: !cupsWon.cl })} /><Globe size={16} /> Continental</label></div></div>
-          </div>
-          <label className="block w-full border-2 border-dashed border-slate-600 bg-slate-900/50 hover:bg-slate-900 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition group"><UploadCloud className="mx-auto text-slate-400 group-hover:text-emerald-500 mb-2" size={32} /><span className="text-slate-400 group-hover:text-white font-medium block">Click để chọn file story.html</span><input type="file" className="hidden" accept=".html" onChange={handleCreateSeason} /></label>
-        </div>
-      )}
-      {!selectedSeason && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {seasons.map(s => (
-            <div key={s.id} className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition group cursor-pointer relative overflow-hidden" onClick={() => setSelectedSeason(s)}>
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110 duration-500"><Trophy size={80} className="text-emerald-500" /></div>
-              <div className="flex justify-between items-start"><h3 className="text-xl font-black text-white mb-4 tracking-tight">{s.name}</h3><button onClick={(e) => handleDeleteSeason(e, s.id)} className="text-slate-600 hover:text-red-500 p-1 transition z-10"><Trash2 size={16} /></button></div>
-              <div className="flex gap-2 mb-8">{s.cups?.league && <span className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded text-xs font-bold border border-yellow-500/30 flex items-center gap-1"><Crown size={12} /></span>}{s.cups?.cup && <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-xs font-bold border border-blue-500/30 flex items-center gap-1"><Trophy size={12} /></span>}{s.cups?.cl && <span className="bg-purple-500/10 text-purple-400 px-2 py-1 rounded text-xs font-bold border border-purple-500/30 flex items-center gap-1"><Globe size={12} /></span>}{!s.cups?.league && !s.cups?.cup && !s.cups?.cl && <span className="text-slate-600 text-xs italic">Trắng tay</span>}</div>
-              <div className="flex justify-between items-center text-sm text-slate-400 pt-4 border-t border-slate-700/50"><span className="flex items-center gap-1"><User size={14} /> {s.players?.length || 0} cầu thủ</span><span className="text-emerald-500 font-bold group-hover:translate-x-1 transition flex items-center gap-1">Chi tiết <ChevronRight size={14} /></span></div>
-            </div>
-          ))}
-          {seasons.length === 0 && !isCreating && <div className="col-span-full text-center py-16 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed"><Activity size={48} className="mx-auto text-slate-600 mb-4" /><p className="text-slate-400">Chưa có dữ liệu mùa giải nào.</p><button onClick={() => setIsCreating(true)} className="text-emerald-500 font-bold mt-2 hover:underline">Tạo mùa giải đầu tiên</button></div>}
-        </div>
-      )}
-      {selectedSeason && (
-        <div className="animate-in fade-in slide-in-from-right-4">
-          <div className="flex items-center justify-between mb-6"><button onClick={() => setSelectedSeason(null)} className="flex items-center gap-2 text-slate-400 hover:text-white transition bg-slate-800 px-4 py-2 rounded-lg border border-slate-700"><ChevronRight className="rotate-180" size={16} /> Quay lại</button><h3 className="font-bold text-white text-xl">{selectedSeason.name} <span className="text-slate-500 font-normal text-sm ml-2">| Danh sách cầu thủ</span></h3></div>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-700"><tr><th className="p-4 w-16 pl-6">Info</th><th className="p-4">Tên cầu thủ</th><th className="p-4 w-28">Vị trí</th><th className="p-4 w-16 text-center">Tuổi</th><th className="p-4 w-32">Apps</th><th className="p-4 w-32">Goals</th><th className="p-4 w-20 text-center">Ast</th><th className="p-4 w-24 text-right pr-6">Av Rat</th></tr></thead>
-                <tbody className="divide-y divide-slate-700/50">{selectedSeason.players.map((p, i) => (
-                  <tr key={i} className="hover:bg-slate-700/40 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
-                    <td className="p-4 pl-6"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white group-hover:text-emerald-400 transition text-base">{p.Name}</td><td className="p-4 text-slate-400 text-xs font-mono bg-slate-900/20 rounded px-2">{p.Position}</td><td className="p-4 text-center text-slate-500">{p.Age}</td>
-                    <td className="p-4"><StoryStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorClass="bg-blue-500" /></td><td className="p-4"><StoryStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorClass="bg-emerald-500" /></td><td className="p-4 text-center text-slate-300 font-medium">{p.Ast || '-'}</td>
-                    <td className="p-4 text-right pr-6"><div className={`inline-block px-2 py-1 rounded text-xs font-bold border ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>{p["Av Rat"]}</div></td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-      <PlayerDetailModal selected={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
-    </div>
-  );
-}
-
 const AdminPanel = ({ onUpdateDb }) => {
   const handleUpload = (e) => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = (ev) => { const parsed = parseHtmlTable(ev.target.result); onUpdateDb(parsed); alert(`Nạp thành công ${parsed.length} cầu thủ.`); };
+    r.onload = (ev) => {
+      const parsed = parseHtmlTable(ev.target.result);
+      onUpdateDb(parsed);
+      alert(`Đã nạp thành công ${parsed.length} cầu thủ vào bộ nhớ.`);
+    };
     r.readAsText(f);
   };
   return (
@@ -503,8 +659,9 @@ const AdminPanel = ({ onUpdateDb }) => {
 }
 
 export default function App() {
+  const [user, setUser] = useState(CURRENT_USER);
   const [tab, setTab] = useState('home');
-  const [posts, setPosts] = useState(SAMPLE_POSTS);
+  const [posts, setPosts] = useState([]);
   const [players, setPlayers] = useState([]);
   const [mobileMenu, setMobileMenu] = useState(false);
 
@@ -520,9 +677,11 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 font-sans text-slate-300 pb-20 selection:bg-emerald-500/30 selection:text-emerald-200">
       <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}><Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span></div>
+          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}>
+            <Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span>
+          </div>
           <div className="hidden md:flex gap-1">{[{ id: 'home', label: 'Trang chủ', icon: Home }, { id: 'news', label: 'Tin tức', icon: Newspaper }, { id: 'database', label: 'Database', icon: Database }, { id: 'story', label: 'Story', icon: Activity }].map((item) => (<button key={item.id} onClick={() => setTab(item.id)} className={`px-4 py-2 rounded-lg transition text-sm font-medium flex items-center gap-2 ${tab === item.id ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/50' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><item.icon size={16} /> {item.label}</button>))}<button onClick={() => setTab('admin')} className={`px-4 py-2 rounded-lg transition text-sm font-bold flex items-center gap-2 ml-4 ${tab === 'admin' ? 'bg-red-900/30 text-red-400 border border-red-800' : 'text-red-400 hover:bg-red-900/20'}`}><Lock size={14} /> Admin</button></div>
-          <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{CURRENT_USER.displayName}</div><div className="text-[10px] text-slate-500">Admin (Local)</div></div><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
+          <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">Admin (Local)</div></div><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
       </nav>
       <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={CURRENT_USER} posts={posts} setPosts={setPosts} />}{tab === 'news' && <NewsFeed user={CURRENT_USER} posts={posts} setPosts={setPosts} />}{tab === 'database' && <DatabaseView players={players} />}{tab === 'story' && <StoryMode user={CURRENT_USER} />}{tab === 'admin' && <AdminPanel onUpdateDb={updateDb} />}</main>
