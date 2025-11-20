@@ -1,36 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-// Firebase Imports
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAnalytics } from "firebase/analytics";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut,
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup
-} from 'firebase/auth';
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  query,
-  orderBy,
-  onSnapshot,
-  serverTimestamp,
-  doc,
-  writeBatch,
-  getDocs,
-  limit,
-  startAfter,
-  updateDoc,
-  increment,
-  where,
-  deleteDoc
-} from 'firebase/firestore';
-// Icons
 import {
   Search, Database, Newspaper, User, LogOut, PlusCircle,
   Download, Trophy, TrendingUp, Shield, Activity, FileUp,
@@ -38,59 +6,48 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home, Globe, Hand, Footprints,
-  Calendar, Medal, Plus, Crown
+  ChevronRight, Share2, Home, Globe, Crown, Calendar
 } from 'lucide-react';
 
-// --- FIREBASE CONFIGURATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyD3P-yoCz7IDYqRIjviAH9JwCAopQhJs30",
-  authDomain: "managerhub-55598.firebaseapp.com",
-  projectId: "managerhub-55598",
-  storageBucket: "managerhub-55598.firebasestorage.app",
-  messagingSenderId: "169824279806",
-  appId: "1:169824279806:web:7df5566f34e9b4469c59af",
-  measurementId: "G-Y10P9NHSJZ"
+// --- CONFIG & MOCK DATA ---
+const CURRENT_USER = {
+  uid: 'admin-local',
+  displayName: 'tencuto',
+  email: 'tencuto@gamehub.com',
+  isAdmin: true,
+  avatar: null
 };
 
-// Khởi tạo Firebase an toàn
-let app;
-let auth;
-let db;
-let analytics;
-
-try {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
-  if (typeof window !== 'undefined') {
-    analytics = getAnalytics(app);
+const SAMPLE_POSTS = [
+  {
+    id: 1,
+    title: "Tổng kết mùa giải 2024: Cú ăn ba lịch sử!",
+    content: "Một mùa giải không thể tin nổi! Chúng ta đã vô địch League, Cup và cả Champions League. \n\n**Mbappe** thực sự là một con quái vật với 52 bàn thắng.",
+    type: "review",
+    author: "tencuto",
+    createdAt: new Date().toISOString(),
+    rating: 4.8,
+    ratingCount: 15,
+    comments: [
+      { id: 1, author: "fan_ham_mo", content: "Đội hình quá khủng!", createdAt: new Date().toISOString() }
+    ],
+    files: []
   }
-} catch (error) {
-  console.error("Lỗi khởi tạo Firebase:", error);
-}
+];
 
-const appId = 'default-app-id';
-
-// --- ADMIN CONFIGURATION ---
-const ADMIN_EMAILS = ["tencuto@gamehub.com", "nguyentan7799@gmail.com"];
-
-// --- UTILS & PARSERS ---
+// --- UTILS ---
 const renderRichText = (text) => {
   if (!text) return null;
-  const safeText = String(text);
-  let html = safeText.replace(/\n/g, '<br/>')
+  let html = text.replace(/\n/g, '<br/>')
     .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
     .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
 };
 
-// Helper format date an toàn
-const formatDate = (timestamp) => {
-  if (!timestamp) return '';
-  if (timestamp.toDate) return timestamp.toDate().toLocaleDateString();
-  if (timestamp instanceof Date) return timestamp.toLocaleDateString();
-  return '';
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024; const sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -134,7 +91,6 @@ const parseHtmlTable = (htmlString) => {
 
     for (let i = startIndex; i < rows.length; i++) {
       const cells = Array.from(rows[i].querySelectorAll('td'));
-
       const getVal = (possibleKeys) => {
         if (!Array.isArray(possibleKeys)) possibleKeys = [possibleKeys];
         for (const key of possibleKeys) {
@@ -183,7 +139,7 @@ const parseHtmlTable = (htmlString) => {
   } catch (e) { console.error("Parse Error:", e); return []; }
 };
 
-// --- COMPONENTS ---
+// --- UI COMPONENTS ---
 const PlayerAvatar = ({ uid, name, size = "md", className = "" }) => {
   const [error, setError] = useState(false);
   const sizeClasses = { sm: "w-8 h-8 text-xs", md: "w-12 h-12 text-sm", lg: "w-32 h-32 text-3xl", xl: "w-48 h-48 text-5xl" };
@@ -269,7 +225,7 @@ const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500" }) => {
   );
 };
 
-// --- SHARED MODAL ---
+// --- MODALS ---
 const PlayerDetailModal = ({ selected, onClose }) => {
   if (!selected) return null;
   const isGK = selected.Position && selected.Position.includes('GK');
@@ -329,54 +285,247 @@ const PlayerDetailModal = ({ selected, onClose }) => {
   );
 };
 
-// --- AUTH PAGE ---
-const AuthPage = ({ onLogin }) => {
-  const [isRegistering, setIsRegistering] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [displayName, setDisplayName] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
-  const googleProvider = new GoogleAuthProvider();
-  const handleGoogleLogin = async () => { try { setLoading(true); await signInWithPopup(auth, googleProvider); } catch (err) { setError(err.message); setLoading(false); } };
-  const handleSubmit = async (e) => {
-    e.preventDefault(); setError(''); setLoading(true);
-    try { if (isRegistering) { const userCredential = await createUserWithEmailAndPassword(auth, email, password); await updateProfile(userCredential.user, { displayName: displayName }); } else { await signInWithEmailAndPassword(auth, email, password); } }
-    catch (err) { if (err.code === 'auth/email-already-in-use') setError('Email này đã được sử dụng.'); else setError(err.message); } setLoading(false);
+// --- POST CREATOR & FEED (LOCAL STORAGE) ---
+const PostCreator = ({ user, onPostCreated }) => {
+  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [files, setFiles] = useState([]); const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null); const textareaRef = useRef(null);
+  const insertText = (before, after) => { const ta = textareaRef.current; if (!ta) return; const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value; setContent(t.substring(0, s) + before + t.substring(s, e) + after + t.substring(e)); setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, e + before.length); }, 0); };
+  const processFiles = (fileList) => { Array.from(fileList).forEach(file => { if (file.size > 5 * 1024 * 1024) alert(`File "${file.name}" > 5MB.`); else { const r = new FileReader(); r.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]); r.readAsDataURL(file); } }); };
+  const handleFile = (e) => processFiles(e.target.files);
+  const handlePaste = (e) => { const items = e.clipboardData.items; const pasted = []; for (let i = 0; i < items.length; i++) if (items[i].type.indexOf('image') !== -1) pasted.push(items[i].getAsFile()); if (pasted.length > 0) { e.preventDefault(); processFiles(pasted); } };
+  const handleSubmit = () => {
+    if (!title.trim()) return;
+    setSubmitting(true);
+    const newPost = {
+      id: Date.now(),
+      title, content, type, files,
+      author: user.displayName || 'Ẩn danh',
+      createdAt: new Date().toISOString(),
+      rating: 0, ratingCount: 0, comments: []
+    };
+    onPostCreated(newPost);
+    setTitle(""); setContent(""); setFiles([]);
+    setSubmitting(false);
   };
+  const removeFile = (idx) => setFiles(files.filter((_, i) => i !== idx));
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
-        <div className="bg-emerald-600/20 p-8 text-center border-b border-slate-800"><Trophy size={48} className="mx-auto text-emerald-500 mb-2" /><h1 className="text-2xl font-bold text-white">ManagerHub</h1><p className="text-slate-400 text-sm">Cộng đồng quản lý bóng đá Việt Nam</p></div>
-        <div className="p-8"><h2 className="text-xl font-bold text-white mb-6 text-center">{isRegistering ? 'Đăng ký tài khoản' : 'Đăng nhập'}</h2>{error && (<div className="mb-4 p-3 bg-red-900/30 border border-red-800 text-red-400 text-sm rounded-lg flex items-center"><AlertCircle size={16} className="mr-2" /> {error}</div>)}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegistering && (<div><label className="block text-sm font-medium text-slate-400 mb-1">Tên hiển thị</label><input type="text" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={displayName} onChange={e => setDisplayName(e.target.value)} required /></div>)}
-            <div><label className="block text-sm font-medium text-slate-400 mb-1">Email</label><input type="email" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-            <div><label className="block text-sm font-medium text-slate-400 mb-1">Mật khẩu</label><input type="password" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={password} onChange={e => setPassword(e.target.value)} required /></div>
-            <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg transition flex justify-center items-center">{loading ? <Loader2 className="animate-spin" /> : (isRegistering ? 'Đăng ký' : 'Đăng nhập')}</button>
-          </form>
-          <div className="my-4 flex items-center"><div className="flex-grow border-t border-slate-700"></div><span className="mx-4 text-slate-500 text-sm">Hoặc</span><div className="flex-grow border-t border-slate-700"></div></div>
-          <button onClick={handleGoogleLogin} className="w-full bg-white text-slate-900 font-bold py-3 rounded-lg flex justify-center items-center gap-2 hover:bg-gray-100 transition"><Globe size={20} /> Đăng nhập bằng Google</button>
-          <div className="mt-6 text-center text-sm text-slate-500">{isRegistering ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}<button onClick={() => setIsRegistering(!isRegistering)} className="text-emerald-500 font-bold hover:underline">{isRegistering ? 'Đăng nhập' : 'Đăng ký ngay'}</button></div>
-        </div>
+    <div className="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
+      <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={20} /> Tạo bài viết mới</h3>
+      <input className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition" placeholder="Tiêu đề..." value={title} onChange={e => setTitle(e.target.value)} />
+      <div className="flex gap-2 mb-3 items-center bg-slate-900 p-2 rounded-lg border border-slate-600">
+        <select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500"><option value="news">Tin tức</option><option value="tip">Chiến thuật</option><option value="review">Review</option></select>
+        <div className="h-4 w-[1px] bg-slate-600 mx-2"></div>
+        <button onClick={() => insertText('**', '**')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In đậm"><Bold size={16} /></button>
+        <button onClick={() => insertText('*', '*')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In nghiêng"><Italic size={16} /></button>
+        <button onClick={() => insertText('## ', '')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Tiêu đề"><Type size={16} /></button>
+        <div className="flex-grow"></div>
+        <button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition"><Paperclip size={14} /> Đính kèm</button>
+        <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFile} />
+      </div>
+      <textarea ref={textareaRef} className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition" placeholder="Nội dung... (Ctrl+V để dán ảnh)" value={content} onChange={e => setContent(e.target.value)} onPaste={handlePaste} />
+      {files.length > 0 && <div className="mb-4 flex flex-wrap gap-2">{files.map((f, i) => (<div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">{f.type.startsWith('image') ? <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" /> : <FileText className="text-slate-400" size={24} />}<div className="flex-1 min-w-0"><p className="text-xs text-slate-300 truncate">{f.name}</p><p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p></div><button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md"><Trash2 size={12} /></button></div>))}</div>}
+      <div className="flex justify-end"><button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50">{submitting ? 'Đang đăng...' : 'Đăng bài'}</button></div>
+    </div>
+  )
+}
+
+const NewsFeed = ({ user, posts, setPosts }) => {
+  const handlePost = (newPost) => setPosts([newPost, ...posts]);
+  const handleRate = (pid, star) => {
+    setPosts(posts.map(p => p.id === pid ? { ...p, rating: ((p.rating * p.ratingCount) + star) / (p.ratingCount + 1), ratingCount: p.ratingCount + 1 } : p));
+  };
+  const handleComment = (pid, comment) => {
+    setPosts(posts.map(p => p.id === pid ? { ...p, comments: [...(p.comments || []), comment] } : p));
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      {user && <PostCreator user={user} onPostCreated={handlePost} />}
+      <div className="space-y-6">
+        {posts.map(post => (
+          <div key={post.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500/50 transition group">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-emerald-400 font-bold border border-slate-600">{post.author?.[0]?.toUpperCase() || 'U'}</div><div><p className="font-bold text-slate-200 text-sm">{post.author}</p><p className="text-xs text-slate-400">{new Date(post.createdAt).toLocaleDateString()}</p></div></div>
+              <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border border-slate-600">{post.type}</span>
+            </div>
+            <h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3>
+            <div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>
+            {post.files?.length > 0 && <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">{post.files.map((f, i) => (<div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">{f.type.startsWith('image') ? <div className="aspect-video relative"><img src={f.data} className="w-full h-full object-cover" /><a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition"><Download className="text-white" /></a></div> : <div className="p-3 flex items-center gap-3"><FileText className="text-slate-400" /><div className="flex-1 min-w-0"><p className="text-xs font-medium text-slate-200 truncate">{f.name}</p></div><a href={f.data} download={f.name} className="text-emerald-500"><Download size={16} /></a></div>}</div>))}</div>}
+            <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
+              <div className="flex items-center space-x-1">{[1, 2, 3, 4, 5].map((star) => (<button key={star} onClick={() => handleRate(post.id, star)} className={`transition hover:text-yellow-400 ${star <= Math.round(post.rating || 0) ? 'text-yellow-500' : 'text-slate-600'}`}><Star size={16} fill={star <= Math.round(post.rating || 0) ? "currentColor" : "none"} /></button>))}<span className="text-xs text-slate-500 ml-1">({(post.rating || 0).toFixed(1)})</span></div>
+              <div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> {post.comments?.length || 0}</div>
+            </div>
+            <CommentSection post={post} onComment={handleComment} user={user} />
+          </div>
+        ))}
+        {posts.length === 0 && <p className="text-center text-slate-500">Chưa có bài viết nào.</p>}
       </div>
     </div>
   );
 };
 
+const CommentSection = ({ post, onComment, user }) => {
+  const [newComment, setNewComment] = useState('');
+  const handleSend = () => { if (!newComment.trim()) return; onComment(post.id, { id: Date.now(), content: newComment, author: user.displayName, createdAt: new Date().toISOString() }); setNewComment(''); };
+  return (
+    <div className="mt-4 border-t border-slate-700 pt-4">
+      <div className="max-h-40 overflow-y-auto mb-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-600">{post.comments?.map(c => (<div key={c.id} className="bg-slate-700/30 p-2 rounded text-sm border border-slate-700"><span className="font-bold text-slate-300">{c.author}: </span><span className="text-slate-400">{c.content}</span></div>))}</div>
+      <div className="flex space-x-2"><input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Viết bình luận..." className="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-emerald-500 text-slate-200" /><button onClick={handleSend} className="text-emerald-500 hover:bg-emerald-900/20 p-1 rounded transition"><Send size={16} /></button></div>
+    </div>
+  );
+};
+
+const DatabaseView = ({ players }) => {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+  const filtered = useMemo(() => { if (!search) return players.slice(0, 50); return players.filter(p => p.Name.toLowerCase().includes(search.toLowerCase())); }, [players, search]);
+  useEffect(() => { const handleEsc = (e) => { if (e.key === 'Escape') setSelected(null); }; window.addEventListener('keydown', handleEsc); return () => window.removeEventListener('keydown', handleEsc); }, []);
+
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2"><Database className="text-emerald-500" /> Database <span className="text-slate-500 text-sm">({players.length})</span></h2>
+        <div className="relative w-full md:w-80"><Search className="absolute left-3 top-3 text-slate-500" size={18} /><input className="w-full pl-10 p-2.5 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 outline-none focus:border-emerald-500 transition" placeholder="Tìm cầu thủ..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+      </div>
+      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-slate-300">
+            <thead className="bg-slate-900 text-slate-400 uppercase font-bold"><tr><th className="p-4">Img</th><th className="p-4">Tên</th><th className="p-4">CLB</th><th className="p-4 text-center">CA</th><th className="p-4 text-center">PA</th><th className="p-4 text-center">Chi tiết</th></tr></thead>
+            <tbody className="divide-y divide-slate-700">{filtered.length === 0 ? <tr><td colSpan="6" className="p-8 text-center text-slate-500">Chưa có dữ liệu.</td></tr> : filtered.map((p, i) => (
+              <tr key={i} className="hover:bg-slate-700/50 cursor-pointer transition" onClick={() => setSelected(p)}><td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white">{p.Name}</td><td className="p-4 text-slate-400">{p.Club}</td><td className="p-4 text-center"><span className="bg-emerald-900/50 text-emerald-400 px-2 py-1 rounded font-bold border border-emerald-800">{p.CA || '-'}</span></td><td className="p-4 text-center"><span className="bg-purple-900/50 text-purple-400 px-2 py-1 rounded font-bold border border-purple-800">{p.PA || '-'}</span></td><td className="p-4 text-center"><Eye size={18} className="mx-auto text-slate-500 hover:text-white" /></td></tr>))}</tbody>
+          </table>
+        </div>
+      </div>
+      <PlayerDetailModal selected={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+};
+
+// --- SEASON MANAGER ---
+const StoryMode = ({ user }) => {
+  const [seasons, setSeasons] = useState([]);
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [newSeasonName, setNewSeasonName] = useState('');
+  const [cupsWon, setCupsWon] = useState({ league: false, cup: false, cl: false });
+  const [isCreating, setIsCreating] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  useEffect(() => { const saved = localStorage.getItem('managerhub_seasons'); if (saved) setSeasons(JSON.parse(saved)); }, []);
+  useEffect(() => { localStorage.setItem('managerhub_seasons', JSON.stringify(seasons)); }, [seasons]);
+
+  const handleCreateSeason = (e) => {
+    const file = e.target.files[0]; if (!file || !newSeasonName) return alert("Nhập tên & chọn file!");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const parsedData = parseHtmlTable(ev.target.result);
+      if (parsedData.length === 0) return alert("File lỗi.");
+      const newSeason = { id: Date.now(), name: newSeasonName, cups: cupsWon, players: parsedData, createdAt: new Date().toISOString() };
+      setSeasons([newSeason, ...seasons]); setIsCreating(false); setNewSeasonName(''); setCupsWon({ league: false, cup: false, cl: false });
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDeleteSeason = (e, id) => { e.stopPropagation(); if (window.confirm("Xóa mùa giải này?")) setSeasons(seasons.filter(s => s.id !== id)); };
+  const getTrophyCount = () => seasons.reduce((acc, s) => acc + (s.cups.league ? 1 : 0) + (s.cups.cup ? 1 : 0) + (s.cups.cl ? 1 : 0), 0);
+  const getMaxStats = (players) => ({ apps: Math.max(...players.map(p => p.Apps || 0), 1), gls: Math.max(...players.map(p => p.Gls || 0), 1) });
+
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-2xl mb-8 shadow-xl border border-slate-700 flex flex-col md:flex-row justify-between items-center">
+        <div><h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3"><Trophy className="text-yellow-500" size={32} /> Phòng Truyền Thống</h2><p className="text-slate-400">Tổng danh hiệu: <span className="text-yellow-400 font-bold text-xl">{getTrophyCount()}</span></p></div>
+        <button onClick={() => setIsCreating(!isCreating)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2">{isCreating ? <X size={20} /> : <PlusCircle size={20} />} {isCreating ? 'Hủy Bỏ' : 'Thêm Mùa Giải'}</button>
+      </div>
+      {isCreating && (
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 mb-8 animate-in fade-in slide-in-from-top-4">
+          <h3 className="text-xl font-bold text-white mb-4">Tạo Mùa Giải Mới</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div><label className="block text-sm text-slate-400 mb-2 font-bold uppercase">Tên mùa giải</label><input className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-emerald-500" value={newSeasonName} onChange={e => setNewSeasonName(e.target.value)} placeholder="VD: 2024-2025" /></div>
+            <div><label className="block text-sm text-slate-400 mb-2 font-bold uppercase">Danh hiệu</label><div className="flex gap-3 flex-wrap"><label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.league ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}><input type="checkbox" className="hidden" checked={cupsWon.league} onChange={() => setCupsWon({ ...cupsWon, league: !cupsWon.league })} /><Crown size={16} /> League</label><label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.cup ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}><input type="checkbox" className="hidden" checked={cupsWon.cup} onChange={() => setCupsWon({ ...cupsWon, cup: !cupsWon.cup })} /><Trophy size={16} /> Cup</label><label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition select-none ${cupsWon.cl ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}><input type="checkbox" className="hidden" checked={cupsWon.cl} onChange={() => setCupsWon({ ...cupsWon, cl: !cupsWon.cl })} /><Globe size={16} /> Continental</label></div></div>
+          </div>
+          <label className="block w-full border-2 border-dashed border-slate-600 bg-slate-900/50 hover:bg-slate-900 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition group"><UploadCloud className="mx-auto text-slate-400 group-hover:text-emerald-500 mb-2" size={32} /><span className="text-slate-400 group-hover:text-white font-medium block">Click để chọn file story.html</span><input type="file" className="hidden" accept=".html" onChange={handleCreateSeason} /></label>
+        </div>
+      )}
+      {!selectedSeason && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {seasons.map(s => (
+            <div key={s.id} className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition group cursor-pointer relative overflow-hidden" onClick={() => setSelectedSeason(s)}>
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110 duration-500"><Trophy size={80} className="text-emerald-500" /></div>
+              <div className="flex justify-between items-start"><h3 className="text-xl font-black text-white mb-4 tracking-tight">{s.name}</h3><button onClick={(e) => handleDeleteSeason(e, s.id)} className="text-slate-600 hover:text-red-500 p-1 transition z-10"><Trash2 size={16} /></button></div>
+              <div className="flex gap-2 mb-8">{s.cups?.league && <span className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded text-xs font-bold border border-yellow-500/30 flex items-center gap-1"><Crown size={12} /></span>}{s.cups?.cup && <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-xs font-bold border border-blue-500/30 flex items-center gap-1"><Trophy size={12} /></span>}{s.cups?.cl && <span className="bg-purple-500/10 text-purple-400 px-2 py-1 rounded text-xs font-bold border border-purple-500/30 flex items-center gap-1"><Globe size={12} /></span>}{!s.cups?.league && !s.cups?.cup && !s.cups?.cl && <span className="text-slate-600 text-xs italic">Trắng tay</span>}</div>
+              <div className="flex justify-between items-center text-sm text-slate-400 pt-4 border-t border-slate-700/50"><span className="flex items-center gap-1"><User size={14} /> {s.players?.length || 0} cầu thủ</span><span className="text-emerald-500 font-bold group-hover:translate-x-1 transition flex items-center gap-1">Chi tiết <ChevronRight size={14} /></span></div>
+            </div>
+          ))}
+          {seasons.length === 0 && !isCreating && <div className="col-span-full text-center py-16 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed"><Activity size={48} className="mx-auto text-slate-600 mb-4" /><p className="text-slate-400">Chưa có dữ liệu mùa giải nào.</p><button onClick={() => setIsCreating(true)} className="text-emerald-500 font-bold mt-2 hover:underline">Tạo mùa giải đầu tiên</button></div>}
+        </div>
+      )}
+      {selectedSeason && (
+        <div className="animate-in fade-in slide-in-from-right-4">
+          <div className="flex items-center justify-between mb-6"><button onClick={() => setSelectedSeason(null)} className="flex items-center gap-2 text-slate-400 hover:text-white transition bg-slate-800 px-4 py-2 rounded-lg border border-slate-700"><ChevronRight className="rotate-180" size={16} /> Quay lại</button><h3 className="font-bold text-white text-xl">{selectedSeason.name} <span className="text-slate-500 font-normal text-sm ml-2">| Danh sách cầu thủ</span></h3></div>
+          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-700"><tr><th className="p-4 w-16 pl-6">Info</th><th className="p-4">Tên cầu thủ</th><th className="p-4 w-28">Vị trí</th><th className="p-4 w-16 text-center">Tuổi</th><th className="p-4 w-32">Apps</th><th className="p-4 w-32">Goals</th><th className="p-4 w-20 text-center">Ast</th><th className="p-4 w-24 text-right pr-6">Av Rat</th></tr></thead>
+                <tbody className="divide-y divide-slate-700/50">{selectedSeason.players.map((p, i) => (
+                  <tr key={i} className="hover:bg-slate-700/40 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                    <td className="p-4 pl-6"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white group-hover:text-emerald-400 transition text-base">{p.Name}</td><td className="p-4 text-slate-400 text-xs font-mono bg-slate-900/20 rounded px-2">{p.Position}</td><td className="p-4 text-center text-slate-500">{p.Age}</td>
+                    <td className="p-4"><StoryStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorClass="bg-blue-500" /></td><td className="p-4"><StoryStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorClass="bg-emerald-500" /></td><td className="p-4 text-center text-slate-300 font-medium">{p.Ast || '-'}</td>
+                    <td className="p-4 text-right pr-6"><div className={`inline-block px-2 py-1 rounded text-xs font-bold border ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>{p["Av Rat"]}</div></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+      <PlayerDetailModal selected={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+    </div>
+  );
+}
+
+const AdminPanel = ({ onUpdateDb }) => {
+  const handleUpload = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = (ev) => { const parsed = parseHtmlTable(ev.target.result); onUpdateDb(parsed); alert(`Nạp thành công ${parsed.length} cầu thủ.`); };
+    r.readAsText(f);
+  };
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+        <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500"><Database size={32} /></div>
+        <h3 className="text-xl font-bold text-white mb-2">Cập nhật Database (Local)</h3>
+        <p className="text-slate-400 mb-6">Upload file <b>database.html</b> để nạp dữ liệu vào bộ nhớ tạm.</p>
+        <label className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold cursor-pointer transition inline-flex items-center gap-2"><UploadCloud size={20} /> Chọn File Database<input type="file" className="hidden" onChange={handleUpload} accept=".html" /></label>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [user, setUser] = useState(null); const [loading, setLoading] = useState(true); const [tab, setTab] = useState('home'); const [mobileMenu, setMobileMenu] = useState(false);
-  useEffect(() => { const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }); return () => unsubscribe(); }, []);
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-white"><Loader2 className="animate-spin text-emerald-500" /></div>;
-  if (!user) return <AuthPage />;
-  const isAdmin = ADMIN_EMAILS.includes(user.email);
+  const [tab, setTab] = useState('home');
+  const [posts, setPosts] = useState(SAMPLE_POSTS);
+  const [players, setPlayers] = useState([]);
+  const [mobileMenu, setMobileMenu] = useState(false);
+
+  // Local Storage for Global State
+  useEffect(() => {
+    const savedPosts = localStorage.getItem('managerhub_posts'); if (savedPosts) setPosts(JSON.parse(savedPosts));
+    const savedDb = localStorage.getItem('managerhub_db'); if (savedDb) setPlayers(JSON.parse(savedDb));
+  }, []);
+  useEffect(() => { localStorage.setItem('managerhub_posts', JSON.stringify(posts)); }, [posts]);
+  const updateDb = (data) => { setPlayers(data); localStorage.setItem('managerhub_db', JSON.stringify(data)); };
+
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-300 pb-20 selection:bg-emerald-500/30 selection:text-emerald-200">
       <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}>
-            <Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span>
-          </div>
-          <div className="hidden md:flex gap-1">{[{ id: 'home', label: 'Trang chủ', icon: Home }, { id: 'news', label: 'Tin tức', icon: Newspaper }, { id: 'database', label: 'Database', icon: Database }, { id: 'story', label: 'Story', icon: Activity }].map((item) => (<button key={item.id} onClick={() => setTab(item.id)} className={`px-4 py-2 rounded-lg transition text-sm font-medium flex items-center gap-2 ${tab === item.id ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/50' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><item.icon size={16} /> {item.label}</button>))}{isAdmin && <button onClick={() => setTab('admin')} className={`px-4 py-2 rounded-lg transition text-sm font-bold flex items-center gap-2 ml-4 ${tab === 'admin' ? 'bg-red-900/30 text-red-400 border border-red-800' : 'text-red-400 hover:bg-red-900/20'}`}><Lock size={14} /> Admin</button>}</div>
-          <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">{isAdmin ? 'Administrator' : 'Member'}</div></div><button onClick={() => signOut(auth)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition"><LogOut size={20} /></button><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
+          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}><Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span></div>
+          <div className="hidden md:flex gap-1">{[{ id: 'home', label: 'Trang chủ', icon: Home }, { id: 'news', label: 'Tin tức', icon: Newspaper }, { id: 'database', label: 'Database', icon: Database }, { id: 'story', label: 'Story', icon: Activity }].map((item) => (<button key={item.id} onClick={() => setTab(item.id)} className={`px-4 py-2 rounded-lg transition text-sm font-medium flex items-center gap-2 ${tab === item.id ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/50' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><item.icon size={16} /> {item.label}</button>))}<button onClick={() => setTab('admin')} className={`px-4 py-2 rounded-lg transition text-sm font-bold flex items-center gap-2 ml-4 ${tab === 'admin' ? 'bg-red-900/30 text-red-400 border border-red-800' : 'text-red-400 hover:bg-red-900/20'}`}><Lock size={14} /> Admin</button></div>
+          <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{CURRENT_USER.displayName}</div><div className="text-[10px] text-slate-500">Admin (Local)</div></div><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
       </nav>
-      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={user} />}{tab === 'news' && <NewsFeed user={user} />}{tab === 'database' && <DatabaseView />}{tab === 'story' && <StoryMode user={user} />}{tab === 'admin' && isAdmin && <AdminPanel />}</main>
+      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={CURRENT_USER} posts={posts} setPosts={setPosts} />}{tab === 'news' && <NewsFeed user={CURRENT_USER} posts={posts} setPosts={setPosts} />}{tab === 'database' && <DatabaseView players={players} />}{tab === 'story' && <StoryMode user={CURRENT_USER} />}{tab === 'admin' && <AdminPanel onUpdateDb={updateDb} />}</main>
     </div>
   );
 }
