@@ -27,7 +27,8 @@ import {
   startAfter,
   updateDoc,
   increment,
-  where
+  where,
+  deleteDoc
 } from 'firebase/firestore';
 // Icons
 import {
@@ -38,7 +39,7 @@ import {
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
   ChevronRight, Share2, Home, Globe, Hand, Footprints,
-  Calendar, Medal, Plus
+  Calendar, Medal, Plus, Crown
 } from 'lucide-react';
 
 // --- FIREBASE CONFIGURATION ---
@@ -74,36 +75,22 @@ const appId = 'default-app-id';
 // --- ADMIN CONFIGURATION ---
 const ADMIN_EMAILS = ["tencuto@gamehub.com", "nguyentan7799@gmail.com"];
 
-// --- GEMINI API HELPER ---
-const apiKey = "";
-const callGeminiAPI = async (prompt) => {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      }
-    );
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Không thể tạo nội dung lúc này.";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại sau.";
-  }
-};
-
 // --- UTILS & PARSERS ---
 const renderRichText = (text) => {
   if (!text) return null;
-  // Ensure text is a string
   const safeText = String(text);
   let html = safeText.replace(/\n/g, '<br/>')
     .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
     .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
+};
+
+// Helper format date an toàn
+const formatDate = (timestamp) => {
+  if (!timestamp) return '';
+  if (timestamp.toDate) return timestamp.toDate().toLocaleDateString();
+  if (timestamp instanceof Date) return timestamp.toLocaleDateString();
+  return '';
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -270,14 +257,14 @@ const AttributeBox = ({ label, value }) => {
   );
 };
 
-const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500", label }) => {
+const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500" }) => {
   const percent = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="flex items-center gap-2 w-24">
-      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
         <div className={`h-full ${colorClass}`} style={{ width: `${percent}%` }}></div>
       </div>
-      <span className={`text-xs font-bold w-6 text-right ${value > 0 ? 'text-white' : 'text-slate-600'}`}>{value}</span>
+      <span className={`text-xs font-bold w-8 text-right ${value > 0 ? 'text-white' : 'text-slate-600'}`}>{value}</span>
     </div>
   );
 };
@@ -372,194 +359,6 @@ const AuthPage = ({ onLogin }) => {
   );
 };
 
-// --- SEASON MANAGER ---
-const StoryMode = ({ user }) => {
-  const [seasons, setSeasons] = useState([]);
-  const [selectedSeason, setSelectedSeason] = useState(null);
-  const [newSeasonName, setNewSeasonName] = useState('');
-  const [cupsWon, setCupsWon] = useState({ league: false, cup: false, cl: false });
-  const [isCreating, setIsCreating] = useState(false);
-  const [view, setView] = useState('list');
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-
-  // Load seasons from Firestore
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'seasons'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (s) => {
-      setSeasons(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  const handleCreateSeason = async (e) => {
-    e.preventDefault();
-    const file = e.target.files[0];
-    if (!file || !newSeasonName) return alert("Vui lòng nhập tên mùa giải và chọn file.");
-
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const parsedData = parseHtmlTable(ev.target.result);
-      // Lưu vào Firestore
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'seasons'), {
-        name: newSeasonName,
-        cups: cupsWon,
-        players: JSON.parse(JSON.stringify(parsedData)), // Lưu data cầu thủ
-        createdAt: serverTimestamp()
-      });
-      setIsCreating(false);
-      setNewSeasonName('');
-      setCupsWon({ league: false, cup: false, cl: false });
-    };
-    reader.readAsText(file);
-  };
-
-  const getTrophyCount = () => {
-    let total = 0;
-    seasons.forEach(s => {
-      if (s.cups?.league) total++;
-      if (s.cups?.cup) total++;
-      if (s.cups?.cl) total++;
-    });
-    return total;
-  };
-
-  // Max stats helper
-  const getMaxStats = (players) => ({
-    apps: Math.max(...players.map(p => p.Apps || 0), 1),
-    gls: Math.max(...players.map(p => p.Gls || 0), 1)
-  });
-
-  return (
-    <div className="max-w-6xl mx-auto p-6">
-      {/* Dashboard Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-2xl mb-8 shadow-xl border border-slate-700 flex flex-col md:flex-row justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3">
-            <Trophy className="text-yellow-500" size={32} /> Phòng Truyền Thống
-          </h2>
-          <p className="text-slate-400">Tổng số danh hiệu: <span className="text-yellow-400 font-bold text-xl">{getTrophyCount()}</span></p>
-        </div>
-        <button onClick={() => setIsCreating(!isCreating)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2">
-          <PlusCircle size={20} /> Thêm Mùa Giải Mới
-        </button>
-      </div>
-
-      {/* Create Season Form */}
-      {isCreating && (
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 mb-8 animate-in fade-in slide-in-from-top-4">
-          <h3 className="text-xl font-bold text-white mb-4">Tạo Mùa Giải Mới</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className="block text-sm text-slate-400 mb-2">Tên mùa giải (VD: 2024-2025)</label>
-              <input className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-emerald-500" value={newSeasonName} onChange={e => setNewSeasonName(e.target.value)} placeholder="Nhập tên..." />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-400 mb-2">Danh hiệu đạt được</label>
-              <div className="flex gap-4">
-                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition ${cupsWon.league ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
-                  <input type="checkbox" className="hidden" checked={cupsWon.league} onChange={() => setCupsWon({ ...cupsWon, league: !cupsWon.league })} />
-                  <Trophy size={16} /> League
-                </label>
-                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition ${cupsWon.cup ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
-                  <input type="checkbox" className="hidden" checked={cupsWon.cup} onChange={() => setCupsWon({ ...cupsWon, cup: !cupsWon.cup })} />
-                  <Trophy size={16} /> Cup
-                </label>
-                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition ${cupsWon.cl ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
-                  <input type="checkbox" className="hidden" checked={cupsWon.cl} onChange={() => setCupsWon({ ...cupsWon, cl: !cupsWon.cl })} />
-                  <Globe size={16} /> Continental
-                </label>
-              </div>
-            </div>
-          </div>
-          <label className="block w-full border-2 border-dashed border-slate-600 bg-slate-900/50 hover:bg-slate-900 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition group">
-            <UploadCloud className="mx-auto text-slate-400 group-hover:text-emerald-500 mb-2" size={32} />
-            <span className="text-slate-400 group-hover:text-white font-medium">Upload file story.html</span>
-            <input type="file" className="hidden" accept=".html" onChange={handleCreateSeason} />
-          </label>
-        </div>
-      )}
-
-      {/* Season Cards */}
-      {!selectedSeason && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {seasons.map(season => (
-            <div key={season.id} className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition group cursor-pointer relative overflow-hidden" onClick={() => setSelectedSeason(season)}>
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                <Trophy size={64} className="text-emerald-500" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">{season.name}</h3>
-              <div className="flex gap-2 mb-6">
-                {season.cups?.league && <span className="bg-yellow-500/20 text-yellow-500 px-2 py-1 rounded text-xs font-bold border border-yellow-500/30 flex items-center gap-1"><Trophy size={12} /> League</span>}
-                {season.cups?.cup && <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-bold border border-blue-500/30 flex items-center gap-1"><Trophy size={12} /> Cup</span>}
-                {season.cups?.cl && <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold border border-purple-500/30 flex items-center gap-1"><Globe size={12} /> Continental</span>}
-                {!season.cups?.league && !season.cups?.cup && !season.cups?.cl && <span className="text-slate-500 text-xs italic">Không có danh hiệu</span>}
-              </div>
-              <div className="flex justify-between items-center text-sm text-slate-400">
-                <span>{season.players?.length || 0} cầu thủ</span>
-                <span className="text-emerald-400 font-bold group-hover:translate-x-1 transition flex items-center">Xem chi tiết <ChevronRight size={16} /></span>
-              </div>
-            </div>
-          ))}
-          {seasons.length === 0 && !isCreating && (
-            <div className="col-span-full text-center py-12 text-slate-500">Chưa có mùa giải nào. Hãy tạo mới!</div>
-          )}
-        </div>
-      )}
-
-      {/* Detail View */}
-      {selectedSeason && (
-        <div className="animate-in fade-in slide-in-from-right-4">
-          <button onClick={() => setSelectedSeason(null)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition">
-            <ChevronRight className="rotate-180" size={20} /> Quay lại danh sách
-          </button>
-
-          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
-              <h3 className="font-bold text-white text-lg">{selectedSeason.name} - Thống kê đội hình</h3>
-            </div>
-            <table className="w-full text-sm text-left text-slate-300">
-              <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-bold">
-                <tr>
-                  <th className="p-4 w-16">#</th>
-                  <th className="p-4">Tên</th>
-                  <th className="p-4 w-24">Vị trí</th>
-                  <th className="p-4 w-16 text-center">Tuổi</th>
-                  <th className="p-4 w-32">Apps</th>
-                  <th className="p-4 w-32">Goals</th>
-                  <th className="p-4 w-24 text-center">Ast</th>
-                  <th className="p-4 w-24 text-right">Av Rat</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700">
-                {selectedSeason.players.map((p, i) => (
-                  <tr key={i} className="hover:bg-slate-700/50 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
-                    <td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td>
-                    <td className="p-4 font-bold text-white group-hover:text-emerald-400 transition">{p.Name}</td>
-                    <td className="p-4 text-slate-400 text-xs">{p.Position}</td>
-                    <td className="p-4 text-center text-slate-500">{p.Age}</td>
-                    <td className="p-4"><StoryStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorClass="bg-blue-500" /></td>
-                    <td className="p-4"><StoryStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorClass="bg-emerald-500" /></td>
-                    <td className="p-4 text-center text-slate-400">{p.Ast || '-'}</td>
-                    <td className="p-4 text-right font-bold">
-                      <span className={`px-2 py-1 rounded ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400' : 'text-slate-400'}`}>
-                        {p["Av Rat"]}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      {/* Modal */}
-      <PlayerDetailModal selected={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
-    </div>
-  );
-}
-
-// --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null); const [loading, setLoading] = useState(true); const [tab, setTab] = useState('home'); const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => { const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }); return () => unsubscribe(); }, []);
