@@ -74,10 +74,33 @@ const appId = 'default-app-id';
 // --- ADMIN CONFIGURATION ---
 const ADMIN_EMAILS = ["tencuto@gamehub.com", "nguyentan7799@gmail.com"];
 
+// --- GEMINI API HELPER ---
+const apiKey = "";
+const callGeminiAPI = async (prompt) => {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    );
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Không thể tạo nội dung lúc này.";
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    return "Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại sau.";
+  }
+};
+
 // --- UTILS & PARSERS ---
 const renderRichText = (text) => {
   if (!text) return null;
-  let html = text.replace(/\n/g, '<br/>')
+  // Ensure text is a string
+  const safeText = String(text);
+  let html = safeText.replace(/\n/g, '<br/>')
     .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
     .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
@@ -319,7 +342,37 @@ const PlayerDetailModal = ({ selected, onClose }) => {
   );
 };
 
-// --- STORY MODE (UPDATED: SEASON MANAGER) ---
+// --- AUTH PAGE ---
+const AuthPage = ({ onLogin }) => {
+  const [isRegistering, setIsRegistering] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [displayName, setDisplayName] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
+  const googleProvider = new GoogleAuthProvider();
+  const handleGoogleLogin = async () => { try { setLoading(true); await signInWithPopup(auth, googleProvider); } catch (err) { setError(err.message); setLoading(false); } };
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setError(''); setLoading(true);
+    try { if (isRegistering) { const userCredential = await createUserWithEmailAndPassword(auth, email, password); await updateProfile(userCredential.user, { displayName: displayName }); } else { await signInWithEmailAndPassword(auth, email, password); } }
+    catch (err) { if (err.code === 'auth/email-already-in-use') setError('Email này đã được sử dụng.'); else setError(err.message); } setLoading(false);
+  };
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
+        <div className="bg-emerald-600/20 p-8 text-center border-b border-slate-800"><Trophy size={48} className="mx-auto text-emerald-500 mb-2" /><h1 className="text-2xl font-bold text-white">ManagerHub</h1><p className="text-slate-400 text-sm">Cộng đồng quản lý bóng đá Việt Nam</p></div>
+        <div className="p-8"><h2 className="text-xl font-bold text-white mb-6 text-center">{isRegistering ? 'Đăng ký tài khoản' : 'Đăng nhập'}</h2>{error && (<div className="mb-4 p-3 bg-red-900/30 border border-red-800 text-red-400 text-sm rounded-lg flex items-center"><AlertCircle size={16} className="mr-2" /> {error}</div>)}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegistering && (<div><label className="block text-sm font-medium text-slate-400 mb-1">Tên hiển thị</label><input type="text" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={displayName} onChange={e => setDisplayName(e.target.value)} required /></div>)}
+            <div><label className="block text-sm font-medium text-slate-400 mb-1">Email</label><input type="email" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+            <div><label className="block text-sm font-medium text-slate-400 mb-1">Mật khẩu</label><input type="password" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={password} onChange={e => setPassword(e.target.value)} required /></div>
+            <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg transition flex justify-center items-center">{loading ? <Loader2 className="animate-spin" /> : (isRegistering ? 'Đăng ký' : 'Đăng nhập')}</button>
+          </form>
+          <div className="my-4 flex items-center"><div className="flex-grow border-t border-slate-700"></div><span className="mx-4 text-slate-500 text-sm">Hoặc</span><div className="flex-grow border-t border-slate-700"></div></div>
+          <button onClick={handleGoogleLogin} className="w-full bg-white text-slate-900 font-bold py-3 rounded-lg flex justify-center items-center gap-2 hover:bg-gray-100 transition"><Globe size={20} /> Đăng nhập bằng Google</button>
+          <div className="mt-6 text-center text-sm text-slate-500">{isRegistering ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}<button onClick={() => setIsRegistering(!isRegistering)} className="text-emerald-500 font-bold hover:underline">{isRegistering ? 'Đăng nhập' : 'Đăng ký ngay'}</button></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- SEASON MANAGER ---
 const StoryMode = ({ user }) => {
   const [seasons, setSeasons] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(null);
