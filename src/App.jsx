@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 // Firebase Imports
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAnalytics } from "firebase/analytics"; // Đã thêm Analytics
+import { getAnalytics } from "firebase/analytics";
 import {
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  GoogleAuthProvider, // Thêm Provider Google
+  signInWithPopup     // Thêm hàm đăng nhập Popup
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -34,10 +36,10 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home
+  ChevronRight, Share2, Home, Globe // Globe thay thế icon Google nếu cần
 } from 'lucide-react';
 
-// --- FIREBASE CONFIGURATION (CẤU HÌNH CỦA BẠN) ---
+// --- FIREBASE CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyD3P-yoCz7IDYqRIjviAH9JwCAopQhJs30",
   authDomain: "managerhub-55598.firebaseapp.com",
@@ -55,12 +57,9 @@ let db;
 let analytics;
 
 try {
-  // Kiểm tra xem app đã khởi tạo chưa để tránh lỗi duplicate khi hot-reload
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   db = getFirestore(app);
-
-  // Khởi tạo Analytics (chỉ chạy ở phía client)
   if (typeof window !== 'undefined') {
     analytics = getAnalytics(app);
   }
@@ -71,7 +70,7 @@ try {
 const appId = 'default-app-id';
 
 // --- ADMIN CONFIGURATION ---
-const ADMIN_EMAIL = "tencuto@gamehub.com"; // Email Admin
+const ADMIN_EMAILS = ["tencuto@gamehub.com", "nguyentan7799@gmail.com"];
 
 // --- GEMINI API HELPER ---
 const apiKey = "";
@@ -111,7 +110,6 @@ const parseHtmlTable = (htmlString) => {
     let headerRow = rows.find(r => r.querySelectorAll('th').length > 5);
     if (!headerRow) headerRow = rows[0];
 
-    // Map tên cột gốc sang index
     const colIndexMap = {};
     Array.from(headerRow.querySelectorAll('th, td')).forEach((cell, index) => {
       const text = cell.innerText.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -121,7 +119,6 @@ const parseHtmlTable = (htmlString) => {
     const data = [];
     const startIndex = rows.indexOf(headerRow) + 1;
 
-    // Mapping từ tên chuẩn hóa sang tên thuộc tính Stats
     const statsMapping = {
       'cor': 'Cor', 'corners': 'Cor', 'cro': 'Cro', 'crossing': 'Cro', 'dri': 'Dri', 'dribbling': 'Dri',
       'fin': 'Fin', 'finishing': 'Fin', 'fir': 'Fir', 'firsttouch': 'Fir', 'fre': 'Fre', 'freekicks': 'Fre',
@@ -256,11 +253,7 @@ const PostCreator = ({ user }) => {
     if (!title) return; setSubmitting(true);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), {
-        title, content, type,
-        author: user.displayName || 'Ẩn danh',
-        authorId: user.uid,
-        createdAt: serverTimestamp(),
-        rating: 0, ratingCount: 0
+        title, content, type, author: user.displayName || 'Ẩn danh', authorId: user.uid, createdAt: serverTimestamp(), rating: 0, ratingCount: 0
       });
       setTitle(""); setContent("");
     } catch (e) { console.error(e); alert("Lỗi đăng bài: " + e.message); }
@@ -374,7 +367,12 @@ const DatabaseView = () => {
 const StoryMode = () => {
   const [data, setData] = useState([]);
   const [view, setView] = useState('list');
-  const handleUpload = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { setData(parseHtmlTable(ev.target.result)); }; r.readAsText(f); };
+  const handleUpload = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = (ev) => { setData(parseHtmlTable(ev.target.result)); };
+    r.readAsText(f);
+  };
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-10 rounded-xl mb-8 flex justify-between items-center shadow-lg border border-slate-700">
@@ -433,9 +431,12 @@ const AdminPanel = () => {
 
 const AuthPage = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [displayName, setDisplayName] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
+  const googleProvider = new GoogleAuthProvider();
+  const handleGoogleLogin = async () => { try { setLoading(true); await signInWithPopup(auth, googleProvider); } catch (err) { setError(err.message); setLoading(false); } };
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
-    try { if (isRegistering) { const userCredential = await createUserWithEmailAndPassword(auth, email, password); await updateProfile(userCredential.user, { displayName: displayName }); } else { await signInWithEmailAndPassword(auth, email, password); } } catch (err) { setError(err.message); } setLoading(false);
+    try { if (isRegistering) { const userCredential = await createUserWithEmailAndPassword(auth, email, password); await updateProfile(userCredential.user, { displayName: displayName }); } else { await signInWithEmailAndPassword(auth, email, password); } }
+    catch (err) { if (err.code === 'auth/email-already-in-use') setError('Email này đã được sử dụng.'); else setError(err.message); } setLoading(false);
   };
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
@@ -448,6 +449,8 @@ const AuthPage = ({ onLogin }) => {
             <div><label className="block text-sm font-medium text-slate-400 mb-1">Mật khẩu</label><input type="password" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={password} onChange={e => setPassword(e.target.value)} required /></div>
             <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg transition flex justify-center items-center">{loading ? <Loader2 className="animate-spin" /> : (isRegistering ? 'Đăng ký' : 'Đăng nhập')}</button>
           </form>
+          <div className="my-4 flex items-center"><div className="flex-grow border-t border-slate-700"></div><span className="mx-4 text-slate-500 text-sm">Hoặc</span><div className="flex-grow border-t border-slate-700"></div></div>
+          <button onClick={handleGoogleLogin} className="w-full bg-white text-slate-900 font-bold py-3 rounded-lg flex justify-center items-center gap-2 hover:bg-gray-100 transition"><Globe size={20} /> Đăng nhập bằng Google</button>
           <div className="mt-6 text-center text-sm text-slate-500">{isRegistering ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}<button onClick={() => setIsRegistering(!isRegistering)} className="text-emerald-500 font-bold hover:underline">{isRegistering ? 'Đăng nhập' : 'Đăng ký ngay'}</button></div>
         </div>
       </div>
@@ -460,14 +463,12 @@ export default function App() {
   useEffect(() => { const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }); return () => unsubscribe(); }, []);
   if (loading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-white"><Loader2 className="animate-spin text-emerald-500" /></div>;
   if (!user) return <AuthPage />;
-  const isAdmin = user.email === ADMIN_EMAIL;
+  const isAdmin = ADMIN_EMAILS.includes(user.email);
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-300 pb-20 selection:bg-emerald-500/30 selection:text-emerald-200">
       <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}>
-            <Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span>
-          </div>
+          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}><Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span></div>
           <div className="hidden md:flex gap-1">{[{ id: 'home', label: 'Trang chủ', icon: Home }, { id: 'news', label: 'Tin tức', icon: Newspaper }, { id: 'database', label: 'Database', icon: Database }, { id: 'story', label: 'Story', icon: Activity }].map((item) => (<button key={item.id} onClick={() => setTab(item.id)} className={`px-4 py-2 rounded-lg transition text-sm font-medium flex items-center gap-2 ${tab === item.id ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/50' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><item.icon size={16} /> {item.label}</button>))}{isAdmin && <button onClick={() => setTab('admin')} className={`px-4 py-2 rounded-lg transition text-sm font-bold flex items-center gap-2 ml-4 ${tab === 'admin' ? 'bg-red-900/30 text-red-400 border border-red-800' : 'text-red-400 hover:bg-red-900/20'}`}><Lock size={14} /> Admin</button>}</div>
           <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">{isAdmin ? 'Administrator' : 'Member'}</div></div><button onClick={() => signOut(auth)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition"><LogOut size={20} /></button><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
