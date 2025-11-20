@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Database, Newspaper, User, LogOut, PlusCircle,
   Download, Trophy, TrendingUp, Shield, Activity, FileUp,
@@ -29,21 +29,17 @@ const parseHtmlTable = (htmlString) => {
     const doc = parser.parseFromString(htmlString, 'text/html');
     const rows = Array.from(doc.querySelectorAll('tr'));
     if (rows.length === 0) return [];
+    let headerRow = rows.find(r => r.querySelectorAll('th').length > 5) || rows[0];
 
-    // Tìm dòng header
-    let headerRow = rows.find(r => r.querySelectorAll('th').length > 5);
-    if (!headerRow) headerRow = rows[0];
-
-    // Map tên cột gốc sang tên chuẩn hóa (lowercase, no spaces)
+    // Create normalized map
     const colMap = {};
     Array.from(headerRow.querySelectorAll('th, td')).forEach((cell, index) => {
       const text = cell.innerText.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-      colMap[index] = text; // ví dụ: 0: "name", 1: "position", 5: "finishing"
+      colMap[index] = text;
     });
 
     const data = [];
     const startIndex = rows.indexOf(headerRow) + 1;
-
     for (let i = startIndex; i < rows.length; i++) {
       const cells = Array.from(rows[i].querySelectorAll('td'));
       const rowRaw = {};
@@ -58,16 +54,14 @@ const parseHtmlTable = (htmlString) => {
         }
       });
 
-      // Chỉ xử lý nếu có tên cầu thủ
       if (rowRaw['name']) {
-        // Helper function để tìm giá trị từ nhiều key tiềm năng
         const getVal = (possibleKeys) => {
           if (!Array.isArray(possibleKeys)) possibleKeys = [possibleKeys];
           for (const k of possibleKeys) {
             const normalizedKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (rowRaw[normalizedKey] !== undefined) return rowRaw[normalizedKey];
           }
-          return 0; // Giá trị mặc định nếu không tìm thấy
+          return 0;
         };
 
         const player = {
@@ -83,19 +77,16 @@ const parseHtmlTable = (htmlString) => {
           'Av Rat': getVal(['avrat', 'averagerating', 'avr']),
           'Transfer Value': getVal(['transfervalue', 'value']),
           Stats: {
-            // Technical
             Cor: getVal(['cor', 'corners']), Cro: getVal(['cro', 'crossing']), Dri: getVal(['dri', 'dribbling']),
             Fin: getVal(['fin', 'finishing']), Fir: getVal(['fir', 'firsttouch']), Fre: getVal(['fre', 'freekicks']),
             Hea: getVal(['hea', 'heading']), Lon: getVal(['lon', 'longshots']), LTh: getVal(['lth', 'longthrows']),
             Mar: getVal(['mar', 'marking']), Pas: getVal(['pas', 'passing']), Pen: getVal(['pen', 'penaltytaking']),
             Tck: getVal(['tck', 'tackling']), Tec: getVal(['tec', 'technique']),
-            // Mental
             Agg: getVal(['agg', 'aggression']), Ant: getVal(['ant', 'anticipation']), Bra: getVal(['bra', 'bravery']),
             Cmp: getVal(['cmp', 'composure']), Cnt: getVal(['cnt', 'concentration']), Dec: getVal(['dec', 'decisions']),
             Det: getVal(['det', 'determination']), Fla: getVal(['fla', 'flair']), Ldr: getVal(['ldr', 'leadership']),
             Off: getVal(['off', 'offtheball', 'otb']), Pos: getVal(['pos', 'positioning']), Tea: getVal(['tea', 'teamwork']),
             Vis: getVal(['vis', 'vision']), Wor: getVal(['wor', 'workrate']),
-            // Physical
             Acc: getVal(['acc', 'acceleration']), Agi: getVal(['agi', 'agility']), Bal: getVal(['bal', 'balance']),
             Jum: getVal(['jum', 'jumpingreach']), Nat: getVal(['nat', 'naturalfitness']), Pac: getVal(['pac', 'pace']),
             Sta: getVal(['sta', 'stamina']), Str: getVal(['str', 'strength'])
@@ -120,7 +111,7 @@ const PlayerAvatar = ({ uid, name, size = "md", className = "" }) => {
 const RadarChart = ({ stats }) => {
   if (!stats) return null;
   const groups = [{ name: "ATT", val: (stats.Fin + stats.Lon + stats.Off) / 3 }, { name: "TEC", val: (stats.Tec + stats.Dri + stats.Pas) / 3 }, { name: "TAC", val: (stats.Dec + stats.Ant + stats.Vis) / 3 }, { name: "DEF", val: (stats.Tck + stats.Mar + stats.Pos) / 3 }, { name: "PHY", val: (stats.Pac + stats.Acc + stats.Str) / 3 }, { name: "CRE", val: (stats.Fla + stats.Vis + stats.Cro) / 3 }];
-  const size = 240; const center = size / 2; const radius = 80;
+  const size = 240; const center = size / 2; const radius = 90;
   const getPoint = (index, value) => { const angle = index * (Math.PI * 2) / 6 - Math.PI / 2; const dist = ((value || 5) / 20) * radius; return `${center + Math.cos(angle) * dist},${center + Math.sin(angle) * dist}`; };
   const points = groups.map((g, i) => getPoint(i, g.val)).join(' ');
   const bgPoints = groups.map((g, i) => getPoint(i, 20)).join(' ');
@@ -147,10 +138,9 @@ const AttributeBox = ({ label, value }) => {
   const val = value || 0;
   let valColor = "text-slate-400";
   let bgBar = "bg-slate-700";
-  // Logic màu sắc chuẩn FM
   if (val >= 16) { valColor = "text-emerald-400 font-bold"; bgBar = "bg-emerald-500"; }
   else if (val >= 11) { valColor = "text-yellow-500 font-bold"; bgBar = "bg-yellow-500"; }
-  else if (val < 1) { valColor = "text-slate-600"; bgBar = "bg-transparent"; } // Giá trị 0 hoặc null
+  else if (val < 1) { valColor = "text-slate-600"; bgBar = "bg-transparent"; }
 
   return (
     <div className="flex justify-between items-center text-sm py-1 border-b border-slate-700/50 last:border-0 group hover:bg-slate-700/30 px-2 rounded transition">
@@ -212,6 +202,15 @@ const DatabaseView = ({ players }) => {
   const [selected, setSelected] = useState(null);
   const filtered = useMemo(() => { if (!search) return players.slice(0, 50); return players.filter(p => p.Name.toLowerCase().includes(search.toLowerCase())); }, [players, search]);
 
+  // Handle close modal on Escape key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setSelected(null);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-6 flex justify-between items-center">
@@ -232,13 +231,28 @@ const DatabaseView = ({ players }) => {
           ))}</tbody>
         </table>
       </div>
-      {selected && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto border border-slate-600">
-            {/* Player Profile Header */}
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-slate-700 relative">
-              <button onClick={() => setSelected(null)} className="absolute top-4 right-4 p-2 bg-slate-700 rounded-full hover:bg-slate-600 text-white transition"><X size={20} /></button>
 
+      {selected && (
+        // Overlay: Click outside to close
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+          onClick={() => setSelected(null)}
+        >
+          {/* Modal Content: Stop propagation to prevent closing when clicking inside */}
+          <div
+            className="bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto border border-slate-600 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Fixed Close Button */}
+            <button
+              onClick={() => setSelected(null)}
+              className="absolute top-4 right-4 p-2 bg-slate-700 hover:bg-red-600 rounded-full text-white transition z-20 shadow-lg"
+              title="Đóng (Esc)"
+            >
+              <X size={24} />
+            </button>
+
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-slate-700 relative">
               <div className="flex-shrink-0">
                 <PlayerAvatar uid={selected.UID} name={selected.Name} size="lg" className="shadow-2xl ring-4 ring-slate-700" />
               </div>
