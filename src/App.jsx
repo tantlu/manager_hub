@@ -26,7 +26,8 @@ import {
   limit,
   startAfter,
   updateDoc,
-  increment
+  increment,
+  where
 } from 'firebase/firestore';
 // Icons
 import {
@@ -36,7 +37,8 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home, Globe, Hand, Footprints
+  ChevronRight, Share2, Home, Globe, Hand, Footprints,
+  Calendar, Medal, Plus
 } from 'lucide-react';
 
 // --- FIREBASE CONFIGURATION ---
@@ -72,31 +74,12 @@ const appId = 'default-app-id';
 // --- ADMIN CONFIGURATION ---
 const ADMIN_EMAILS = ["tencuto@gamehub.com", "nguyentan7799@gmail.com"];
 
-// --- GEMINI API HELPER ---
-const apiKey = "";
-const callGeminiAPI = async (prompt) => {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      }
-    );
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Không thể tạo nội dung lúc này.";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại sau.";
-  }
-};
-
 // --- UTILS & PARSERS ---
 const renderRichText = (text) => {
   if (!text) return null;
-  let html = text.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>').replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
+  let html = text.replace(/\n/g, '<br/>')
+    .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
+    .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
 };
 
@@ -133,7 +116,6 @@ const parseHtmlTable = (htmlString) => {
       'acc': 'Acc', 'acceleration': 'Acc', 'agi': 'Agi', 'agility': 'Agi', 'bal': 'Bal', 'balance': 'Bal',
       'jum': 'Jum', 'jumpingreach': 'Jum', 'nat': 'Nat', 'naturalfitness': 'Nat', 'pac': 'Pac', 'pace': 'Pac',
       'sta': 'Sta', 'stamina': 'Sta', 'str': 'Str', 'strength': 'Str',
-      // GK specific
       'aer': 'Aer', 'aerialreach': 'Aer', 'cmd': 'Cmd', 'commandofarea': 'Cmd', 'com': 'Com', 'communication': 'Com',
       'ecc': 'Ecc', 'eccentricity': 'Ecc', 'han': 'Han', 'handling': 'Han', 'kic': 'Kic', 'kicking': 'Kic',
       'one': 'One', 'oneonones': 'One', '1v1': 'One', 'pun': 'Pun', 'punching': 'Pun', 'ref': 'Ref', 'reflexes': 'Ref',
@@ -277,7 +259,7 @@ const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500", label }) => {
   );
 };
 
-// --- SHARED MODAL FOR BOTH MODES ---
+// --- SHARED MODAL ---
 const PlayerDetailModal = ({ selected, onClose }) => {
   if (!selected) return null;
   const isGK = selected.Position && selected.Position.includes('GK');
@@ -286,27 +268,18 @@ const PlayerDetailModal = ({ selected, onClose }) => {
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
       <div className="bg-slate-800 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto border border-slate-600 relative" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-slate-700 hover:bg-red-600 rounded-full text-white transition z-20 shadow-lg"><X size={24} /></button>
-
-        {/* Header */}
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-slate-700 relative">
           <div className="flex-shrink-0"><PlayerAvatar uid={selected.UID} name={selected.Name} size="xl" className="shadow-2xl ring-4 ring-slate-700" /></div>
           <div className="flex-grow text-center md:text-left w-full">
             <h2 className="text-4xl font-black text-white mb-1 flex items-center justify-center md:justify-start gap-3">{selected.Name} <span className="text-base font-normal text-slate-400 bg-slate-700 px-2 rounded border border-slate-600">{selected.Position}</span></h2>
             <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm text-slate-300 mb-6">
               <span className="flex items-center gap-1"><Shield size={16} className="text-emerald-400" /> {selected.Club}</span>
-              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-              <span>{selected.Age} tuổi</span>
-              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-              <span>{selected['Height'] || '-'}</span>
-              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-              <span>{selected['Weight'] || '-'}</span>
-              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span>
-              <span>{selected['Preferred Foot'] || '-'}</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span><span>{selected.Age} tuổi</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span><span>{selected['Height'] || '-'}</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span><span>{selected['Weight'] || '-'}</span>
+              <span className="w-1 h-1 bg-slate-500 rounded-full self-center"></span><span>{selected['Preferred Foot'] || '-'}</span>
             </div>
-
-            {/* Stat Cards Row */}
             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-              {/* Season Stats (If Available - Story Mode) */}
               {(selected.Apps !== undefined && selected.Apps > 0) && (
                 <>
                   <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Apps</div><div className="text-xl font-black text-white">{selected.Apps}</div></div>
@@ -315,8 +288,6 @@ const PlayerDetailModal = ({ selected, onClose }) => {
                   <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Av Rat</div><div className={`text-xl font-black ${selected['Av Rat'] >= 7.5 ? 'text-emerald-400' : 'text-slate-200'}`}>{selected['Av Rat']}</div></div>
                 </>
               )}
-
-              {/* Database Stats (If Available) */}
               {(selected.CA !== undefined && selected.CA !== '-') && (
                 <>
                   <div className="bg-slate-900/60 px-4 py-2 rounded-lg border border-slate-700 text-center min-w-[80px]"><div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">CA</div><div className="text-xl font-black text-emerald-400">{selected.CA}</div></div>
@@ -328,8 +299,6 @@ const PlayerDetailModal = ({ selected, onClose }) => {
           </div>
           <div className="flex-shrink-0 w-48 h-48 hidden md:flex items-center justify-center bg-slate-900/30 rounded-xl border border-slate-700/50 absolute right-8 top-8"><RadarChart stats={selected.Stats} position={selected.Position} /></div>
         </div>
-
-        {/* Attributes Body */}
         <div className="p-8 bg-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6">
           {isGK ? (
             <>
@@ -350,238 +319,194 @@ const PlayerDetailModal = ({ selected, onClose }) => {
   );
 };
 
-// --- POSTS & NEWSFEED ---
-const PostCreator = ({ user, onPostCreated }) => {
-  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [files, setFiles] = useState([]); const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef(null); const textareaRef = useRef(null);
-  const insertText = (before, after) => { const ta = textareaRef.current; if (!ta) return; const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value; setContent(t.substring(0, s) + before + t.substring(s, e) + after + t.substring(e)); setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, e + before.length); }, 0); };
-  const processFiles = (fileList) => { Array.from(fileList).forEach(file => { if (file.size > 5 * 1024 * 1024) alert(`File "${file.name}" > 5MB.`); else { const r = new FileReader(); r.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]); r.readAsDataURL(file); } }); };
-  const handleFile = (e) => processFiles(e.target.files);
-  const handlePaste = (e) => { const items = e.clipboardData.items; const pasted = []; for (let i = 0; i < items.length; i++) if (items[i].type.indexOf('image') !== -1) pasted.push(items[i].getAsFile()); if (pasted.length > 0) { e.preventDefault(); processFiles(pasted); } };
-  const handleSubmit = async () => { if (!title.trim()) return; setSubmitting(true); try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), { title, content, type, files, author: user.displayName || 'Ẩn danh', authorId: user.uid, createdAt: serverTimestamp(), rating: 0, ratingCount: 0 }); setTitle(""); setContent(""); setFiles([]); } catch (e) { console.error(e); } setSubmitting(false); };
-  const removeFile = (idx) => setFiles(files.filter((_, i) => i !== idx));
-
-  return (
-    <div className="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
-      <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={20} /> Tạo bài viết mới</h3>
-      <input className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition" placeholder="Tiêu đề..." value={title} onChange={e => setTitle(e.target.value)} />
-      <div className="flex gap-2 mb-3 items-center bg-slate-900 p-2 rounded-lg border border-slate-600">
-        <select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500"><option value="news">Tin tức</option><option value="tip">Chiến thuật</option><option value="review">Review</option></select>
-        <div className="h-4 w-[1px] bg-slate-600 mx-2"></div>
-        <button onClick={() => insertText('**', '**')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In đậm"><Bold size={16} /></button>
-        <button onClick={() => insertText('*', '*')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In nghiêng"><Italic size={16} /></button>
-        <button onClick={() => insertText('## ', '')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Tiêu đề"><Type size={16} /></button>
-        <div className="flex-grow"></div>
-        <button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition"><Paperclip size={14} /> Đính kèm</button>
-        <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFile} />
-      </div>
-      <textarea ref={textareaRef} className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition" placeholder="Nội dung... (Ctrl+V để dán ảnh)" value={content} onChange={e => setContent(e.target.value)} onPaste={handlePaste} />
-      {files.length > 0 && <div className="mb-4 flex flex-wrap gap-2">{files.map((f, i) => (<div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">{f.type.startsWith('image') ? <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" /> : <FileText className="text-slate-400" size={24} />}<div className="flex-1 min-w-0"><p className="text-xs text-slate-300 truncate">{f.name}</p><p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p></div><button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md"><Trash2 size={12} /></button></div>))}</div>}
-      <div className="flex justify-end"><button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50">{submitting ? 'Đang đăng...' : 'Đăng bài'}</button></div>
-    </div>
-  )
-}
-
-const NewsFeed = ({ user }) => {
-  const [posts, setPosts] = useState([]);
-  useEffect(() => {
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); }, (error) => console.error("Lỗi tải tin:", error));
-    return () => unsubscribe();
-  }, []);
-  return (
-    <div className="max-w-4xl mx-auto p-6">
-      {user && <PostCreator user={user} />}
-      <div className="space-y-6">{posts.map(post => (
-        <div key={post.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500/50 transition group">
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-emerald-400 font-bold border border-slate-600">{post.author?.[0]?.toUpperCase() || 'U'}</div><div><p className="font-bold text-slate-200 text-sm">{post.author}</p><p className="text-xs text-slate-400">{post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString() : 'Vừa xong'}</p></div></div>
-            <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border border-slate-600">{post.type}</span>
-          </div>
-          <h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3>
-          <div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>
-          {post.files?.length > 0 && <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">{post.files.map((f, i) => (<div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">{f.type.startsWith('image') ? <div className="aspect-video relative"><img src={f.data} className="w-full h-full object-cover" /><a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition"><Download className="text-white" /></a></div> : <div className="p-3 flex items-center gap-3"><FileText className="text-slate-400" /><div className="flex-1 min-w-0"><p className="text-xs font-medium text-slate-200 truncate">{f.name}</p></div><a href={f.data} download={f.name} className="text-emerald-500"><Download size={16} /></a></div>}</div>))}</div>}
-          <div className="flex items-center gap-4 pt-4 border-t border-slate-700"><RatingSystem postId={post.id} initialRating={post.rating} initialCount={post.ratingCount} user={user} /><div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> Bình luận</div></div>
-          <CommentSection postId={post.id} user={user} />
-        </div>
-      ))}
-        {posts.length === 0 && <p className="text-center text-slate-500">Chưa có bài viết nào.</p>}</div>
-    </div>
-  );
-};
-
-const CommentSection = ({ postId, user }) => {
-  const [comments, setComments] = useState([]); const [newComment, setNewComment] = useState('');
-  useEffect(() => { if (!postId) return; const q = query(collection(db, 'artifacts', appId, 'public', 'data', `posts/${postId}/comments`), orderBy('createdAt', 'asc')); const unsubscribe = onSnapshot(q, (snapshot) => { setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); }); return () => unsubscribe(); }, [postId]);
-  const handleSendComment = async () => { if (!newComment.trim() || !user) return; try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', `posts/${postId}/comments`), { content: newComment, author: user.displayName || 'Ẩn danh', authorId: user.uid, createdAt: serverTimestamp() }); setNewComment(''); } catch (e) { console.error(e); } };
-  return (
-    <div className="mt-4 border-t border-slate-700 pt-4">
-      <div className="max-h-40 overflow-y-auto mb-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-600">{comments.map(c => (<div key={c.id} className="bg-slate-700/30 p-2 rounded text-sm border border-slate-700"><span className="font-bold text-slate-300">{c.author}: </span><span className="text-slate-400">{c.content}</span></div>))}</div>
-      {user ? (<div className="flex space-x-2"><input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Viết bình luận..." className="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-emerald-500 text-slate-200" /><button onClick={handleSendComment} className="text-emerald-500 hover:bg-emerald-900/20 p-1 rounded transition"><Send size={16} /></button></div>) : (<p className="text-xs text-slate-500 text-center">Đăng nhập để bình luận.</p>)}
-    </div>
-  );
-};
-
-const RatingSystem = ({ postId, initialRating, initialCount, user }) => {
-  const handleVote = async (star) => { if (!user) { alert("Vui lòng đăng nhập!"); return; } try { const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId); await updateDoc(postRef, { rating: ((initialRating || 0) * (initialCount || 0) + star) / ((initialCount || 0) + 1), ratingCount: increment(1) }); } catch (e) { console.error(e); } };
-  return (<div className="flex items-center space-x-1">{[1, 2, 3, 4, 5].map((star) => (<button key={star} onClick={() => handleVote(star)} className={`transition hover:text-yellow-400 ${star <= Math.round(initialRating || 0) ? 'text-yellow-500' : 'text-slate-600'}`}><Star size={16} fill={star <= Math.round(initialRating || 0) ? "currentColor" : "none"} /></button>))}<span className="text-xs text-slate-500 ml-1">({(initialRating || 0).toFixed(1)})</span></div>);
-};
-
-const DatabaseView = () => {
-  const [players, setPlayers] = useState([]); const [search, setSearch] = useState(""); const [selected, setSelected] = useState(null); const [loading, setLoading] = useState(false);
-  useEffect(() => { setLoading(true); const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'fixed_players'), orderBy('CA', 'desc'), limit(100)); getDocs(q).then(snap => { setPlayers(snap.docs.map(d => d.data())); setLoading(false); }).catch(err => { console.error(err); setLoading(false); }); }, []);
-  const filtered = useMemo(() => { if (!search) return players; const s = search.toLowerCase(); return players.filter(p => (p.Name && p.Name.toLowerCase().includes(s)) || (p.Club && p.Club.toLowerCase().includes(s))); }, [players, search]);
-  useEffect(() => { const handleEsc = (e) => { if (e.key === 'Escape') setSelected(null); }; window.addEventListener('keydown', handleEsc); return () => window.removeEventListener('keydown', handleEsc); }, []);
-
-  return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2"><Database className="text-emerald-500" /> Database <span className="text-slate-500 text-sm">({players.length})</span></h2>
-        <div className="relative w-full md:w-80"><Search className="absolute left-3 top-3 text-slate-500" size={18} /><input className="w-full pl-10 p-2.5 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 outline-none focus:border-emerald-500 transition" placeholder="Tìm cầu thủ..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-      </div>
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-slate-300">
-            <thead className="bg-slate-900 text-slate-400 uppercase font-bold"><tr><th className="p-4">Img</th><th className="p-4">Tên</th><th className="p-4">CLB</th><th className="p-4 text-center">CA</th><th className="p-4 text-center">PA</th><th className="p-4 text-center">Chi tiết</th></tr></thead>
-            <tbody className="divide-y divide-slate-700">{loading ? <tr><td colSpan="6" className="p-8 text-center text-slate-500">Đang tải...</td></tr> : filtered.length === 0 ? <tr><td colSpan="6" className="p-8 text-center text-slate-500">Chưa có dữ liệu.</td></tr> : filtered.map((p, i) => (
-              <tr key={i} className="hover:bg-slate-700/50 cursor-pointer transition" onClick={() => setSelected(p)}><td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white">{p.Name}</td><td className="p-4 text-slate-400">{p.Club}</td><td className="p-4 text-center"><span className="bg-emerald-900/50 text-emerald-400 px-2 py-1 rounded font-bold border border-emerald-800">{p.CA || '-'}</span></td><td className="p-4 text-center"><span className="bg-purple-900/50 text-purple-400 px-2 py-1 rounded font-bold border border-purple-800">{p.PA || '-'}</span></td><td className="p-4 text-center"><Eye size={18} className="mx-auto text-slate-500 hover:text-white" /></td></tr>))}</tbody>
-          </table>
-        </div>
-      </div>
-      {/* Reuse PlayerDetailModal */}
-      <PlayerDetailModal selected={selected} onClose={() => setSelected(null)} />
-    </div>
-  );
-};
-
-const StoryMode = () => {
-  const [data, setData] = useState([]);
+// --- STORY MODE (UPDATED: SEASON MANAGER) ---
+const StoryMode = ({ user }) => {
+  const [seasons, setSeasons] = useState([]);
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [newSeasonName, setNewSeasonName] = useState('');
+  const [cupsWon, setCupsWon] = useState({ league: false, cup: false, cl: false });
+  const [isCreating, setIsCreating] = useState(false);
   const [view, setView] = useState('list');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
-  const handleUpload = (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = (ev) => { setData(parseHtmlTable(ev.target.result)); setView('list'); };
-    r.readAsText(f);
+  // Load seasons from Firestore
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'seasons'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (s) => {
+      setSeasons(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleCreateSeason = async (e) => {
+    e.preventDefault();
+    const file = e.target.files[0];
+    if (!file || !newSeasonName) return alert("Vui lòng nhập tên mùa giải và chọn file.");
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const parsedData = parseHtmlTable(ev.target.result);
+      // Lưu vào Firestore
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'seasons'), {
+        name: newSeasonName,
+        cups: cupsWon,
+        players: JSON.parse(JSON.stringify(parsedData)), // Lưu data cầu thủ
+        createdAt: serverTimestamp()
+      });
+      setIsCreating(false);
+      setNewSeasonName('');
+      setCupsWon({ league: false, cup: false, cl: false });
+    };
+    reader.readAsText(file);
   };
 
-  const maxApps = useMemo(() => Math.max(...data.map(p => p.Apps || 0), 1), [data]);
-  const maxGls = useMemo(() => Math.max(...data.map(p => p.Gls || 0), 1), [data]);
+  const getTrophyCount = () => {
+    let total = 0;
+    seasons.forEach(s => {
+      if (s.cups?.league) total++;
+      if (s.cups?.cup) total++;
+      if (s.cups?.cl) total++;
+    });
+    return total;
+  };
+
+  // Max stats helper
+  const getMaxStats = (players) => ({
+    apps: Math.max(...players.map(p => p.Apps || 0), 1),
+    gls: Math.max(...players.map(p => p.Gls || 0), 1)
+  });
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-10 rounded-xl mb-8 flex justify-between items-center shadow-lg border border-slate-700">
-        <div><h2 className="text-3xl font-bold mb-2 flex items-center gap-3"><Activity className="text-emerald-400" /> My Season Story</h2><p className="text-slate-400">Upload file <b>story.html</b> để phân tích.</p></div>
-        <label className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-lg font-bold cursor-pointer transition flex items-center gap-2"><UploadCloud /> <span>Upload</span><input type="file" className="hidden" onChange={handleUpload} accept=".html" /></label>
-      </div>
-      {data.length > 0 ? (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-          <table className="w-full text-sm text-left text-slate-300">
-            <thead className="bg-slate-900 text-slate-400 uppercase text-xs font-bold tracking-wider">
-              <tr>
-                <th className="p-4 w-16">#</th>
-                <th className="p-4">Tên</th>
-                <th className="p-4 w-32">Vị trí</th>
-                <th className="p-4 w-16 text-center">Tuổi</th>
-                <th className="p-4 w-32">Apps</th>
-                <th className="p-4 w-32">Goals</th>
-                <th className="p-4 w-32">Ast</th>
-                <th className="p-4 w-24 text-right">Av Rat</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700">
-              {data.map((p, i) => (
-                <tr key={i} className="hover:bg-slate-700/50 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
-                  <td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td>
-                  <td className="p-4 font-bold text-white group-hover:text-emerald-400 transition">{p.Name}</td>
-                  <td className="p-4 text-slate-400 text-xs">{p.Position}</td>
-                  <td className="p-4 text-center text-slate-500">{p.Age}</td>
-                  <td className="p-4"><StoryStatBar value={p.Apps} max={maxApps} colorClass="bg-blue-500" /></td>
-                  <td className="p-4"><StoryStatBar value={p.Gls} max={maxGls} colorClass="bg-emerald-500" /></td>
-                  <td className="p-4 text-slate-400 text-center">{p.Ast || '-'}</td>
-                  <td className="p-4 text-right font-bold text-white bg-slate-900/30">
-                    <span className={`px-2 py-1 rounded ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400' : 'text-slate-400'}`}>{p["Av Rat"]}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Dashboard Header */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 rounded-2xl mb-8 shadow-xl border border-slate-700 flex flex-col md:flex-row justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3">
+            <Trophy className="text-yellow-500" size={32} /> Phòng Truyền Thống
+          </h2>
+          <p className="text-slate-400">Tổng số danh hiệu: <span className="text-yellow-400 font-bold text-xl">{getTrophyCount()}</span></p>
         </div>
-      ) : (
-        <div className="text-center py-20 bg-slate-800/50 rounded-xl border-2 border-dashed border-slate-700 flex flex-col items-center"><FileUp size={64} className="text-slate-600 mb-4" /><p className="text-slate-500">Chưa có dữ liệu mùa giải.</p></div>
+        <button onClick={() => setIsCreating(!isCreating)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2">
+          <PlusCircle size={20} /> Thêm Mùa Giải Mới
+        </button>
+      </div>
+
+      {/* Create Season Form */}
+      {isCreating && (
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 mb-8 animate-in fade-in slide-in-from-top-4">
+          <h3 className="text-xl font-bold text-white mb-4">Tạo Mùa Giải Mới</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">Tên mùa giải (VD: 2024-2025)</label>
+              <input className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-emerald-500" value={newSeasonName} onChange={e => setNewSeasonName(e.target.value)} placeholder="Nhập tên..." />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">Danh hiệu đạt được</label>
+              <div className="flex gap-4">
+                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition ${cupsWon.league ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={cupsWon.league} onChange={() => setCupsWon({ ...cupsWon, league: !cupsWon.league })} />
+                  <Trophy size={16} /> League
+                </label>
+                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition ${cupsWon.cup ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={cupsWon.cup} onChange={() => setCupsWon({ ...cupsWon, cup: !cupsWon.cup })} />
+                  <Trophy size={16} /> Cup
+                </label>
+                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition ${cupsWon.cl ? 'bg-emerald-900/50 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-600 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={cupsWon.cl} onChange={() => setCupsWon({ ...cupsWon, cl: !cupsWon.cl })} />
+                  <Globe size={16} /> Continental
+                </label>
+              </div>
+            </div>
+          </div>
+          <label className="block w-full border-2 border-dashed border-slate-600 bg-slate-900/50 hover:bg-slate-900 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition group">
+            <UploadCloud className="mx-auto text-slate-400 group-hover:text-emerald-500 mb-2" size={32} />
+            <span className="text-slate-400 group-hover:text-white font-medium">Upload file story.html</span>
+            <input type="file" className="hidden" accept=".html" onChange={handleCreateSeason} />
+          </label>
+        </div>
       )}
-      {/* Modal in Story Mode */}
+
+      {/* Season Cards */}
+      {!selectedSeason && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {seasons.map(season => (
+            <div key={season.id} className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition group cursor-pointer relative overflow-hidden" onClick={() => setSelectedSeason(season)}>
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                <Trophy size={64} className="text-emerald-500" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">{season.name}</h3>
+              <div className="flex gap-2 mb-6">
+                {season.cups?.league && <span className="bg-yellow-500/20 text-yellow-500 px-2 py-1 rounded text-xs font-bold border border-yellow-500/30 flex items-center gap-1"><Trophy size={12} /> League</span>}
+                {season.cups?.cup && <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-bold border border-blue-500/30 flex items-center gap-1"><Trophy size={12} /> Cup</span>}
+                {season.cups?.cl && <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs font-bold border border-purple-500/30 flex items-center gap-1"><Globe size={12} /> Continental</span>}
+                {!season.cups?.league && !season.cups?.cup && !season.cups?.cl && <span className="text-slate-500 text-xs italic">Không có danh hiệu</span>}
+              </div>
+              <div className="flex justify-between items-center text-sm text-slate-400">
+                <span>{season.players?.length || 0} cầu thủ</span>
+                <span className="text-emerald-400 font-bold group-hover:translate-x-1 transition flex items-center">Xem chi tiết <ChevronRight size={16} /></span>
+              </div>
+            </div>
+          ))}
+          {seasons.length === 0 && !isCreating && (
+            <div className="col-span-full text-center py-12 text-slate-500">Chưa có mùa giải nào. Hãy tạo mới!</div>
+          )}
+        </div>
+      )}
+
+      {/* Detail View */}
+      {selectedSeason && (
+        <div className="animate-in fade-in slide-in-from-right-4">
+          <button onClick={() => setSelectedSeason(null)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition">
+            <ChevronRight className="rotate-180" size={20} /> Quay lại danh sách
+          </button>
+
+          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
+              <h3 className="font-bold text-white text-lg">{selectedSeason.name} - Thống kê đội hình</h3>
+            </div>
+            <table className="w-full text-sm text-left text-slate-300">
+              <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-bold">
+                <tr>
+                  <th className="p-4 w-16">#</th>
+                  <th className="p-4">Tên</th>
+                  <th className="p-4 w-24">Vị trí</th>
+                  <th className="p-4 w-16 text-center">Tuổi</th>
+                  <th className="p-4 w-32">Apps</th>
+                  <th className="p-4 w-32">Goals</th>
+                  <th className="p-4 w-24 text-center">Ast</th>
+                  <th className="p-4 w-24 text-right">Av Rat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700">
+                {selectedSeason.players.map((p, i) => (
+                  <tr key={i} className="hover:bg-slate-700/50 transition group cursor-pointer" onClick={() => setSelectedPlayer(p)}>
+                    <td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td>
+                    <td className="p-4 font-bold text-white group-hover:text-emerald-400 transition">{p.Name}</td>
+                    <td className="p-4 text-slate-400 text-xs">{p.Position}</td>
+                    <td className="p-4 text-center text-slate-500">{p.Age}</td>
+                    <td className="p-4"><StoryStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorClass="bg-blue-500" /></td>
+                    <td className="p-4"><StoryStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorClass="bg-emerald-500" /></td>
+                    <td className="p-4 text-center text-slate-400">{p.Ast || '-'}</td>
+                    <td className="p-4 text-right font-bold">
+                      <span className={`px-2 py-1 rounded ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400' : 'text-slate-400'}`}>
+                        {p["Av Rat"]}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {/* Modal */}
       <PlayerDetailModal selected={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
     </div>
   );
 }
 
-const AdminPanel = () => {
-  const [uploading, setUploading] = useState(false); const [status, setStatus] = useState("");
-  const handleUpload = async (e) => {
-    const file = e.target.files[0]; if (!file) return; setUploading(true); setStatus("Đang xử lý...");
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const data = parseHtmlTable(ev.target.result);
-        if (data.length === 0) throw new Error("File rỗng");
-        setStatus(`Đang ghi ${data.length} dòng vào Database...`);
-        const batchSize = 400;
-        for (let i = 0; i < data.length; i += batchSize) {
-          const batch = writeBatch(db);
-          data.slice(i, i + batchSize).forEach(p => {
-            const ref = doc(collection(db, 'artifacts', appId, 'public', 'data', 'fixed_players'), String(p.UID || Math.random()));
-            batch.set(ref, JSON.parse(JSON.stringify(p)));
-          });
-          await batch.commit();
-        }
-        setStatus("Thành công! Database đã cập nhật.");
-      } catch (err) { setStatus("Lỗi: " + err.message); } setUploading(false);
-    }; reader.readAsText(file);
-  };
-  return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
-        <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500"><Database size={32} /></div>
-        <h3 className="text-xl font-bold text-white mb-2">Cập nhật Database (Cloud)</h3>
-        <p className="text-slate-400 mb-6">Upload file <b>database.html</b> để nạp dữ liệu lên Server cho mọi người dùng.</p>
-        {uploading ? <div className="text-emerald-400 animate-pulse">{status}</div> : <label className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold cursor-pointer transition inline-flex items-center gap-2"><UploadCloud size={20} /> Chọn File Database <input type="file" className="hidden" onChange={handleUpload} accept=".html" /></label>}
-        {status && !uploading && <p className="mt-4 text-emerald-400">{status}</p>}
-      </div>
-    </div>
-  );
-}
-
-const AuthPage = ({ onLogin }) => {
-  const [isRegistering, setIsRegistering] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [displayName, setDisplayName] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
-  const googleProvider = new GoogleAuthProvider();
-  const handleGoogleLogin = async () => { try { setLoading(true); await signInWithPopup(auth, googleProvider); } catch (err) { setError(err.message); setLoading(false); } };
-  const handleSubmit = async (e) => {
-    e.preventDefault(); setError(''); setLoading(true);
-    try { if (isRegistering) { const userCredential = await createUserWithEmailAndPassword(auth, email, password); await updateProfile(userCredential.user, { displayName: displayName }); } else { await signInWithEmailAndPassword(auth, email, password); } }
-    catch (err) { if (err.code === 'auth/email-already-in-use') setError('Email này đã được sử dụng.'); else setError(err.message); } setLoading(false);
-  };
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
-        <div className="bg-emerald-600/20 p-8 text-center border-b border-slate-800"><Trophy size={48} className="mx-auto text-emerald-500 mb-2" /><h1 className="text-2xl font-bold text-white">ManagerHub</h1><p className="text-slate-400 text-sm">Cộng đồng quản lý bóng đá Việt Nam</p></div>
-        <div className="p-8"><h2 className="text-xl font-bold text-white mb-6 text-center">{isRegistering ? 'Đăng ký tài khoản' : 'Đăng nhập'}</h2>{error && (<div className="mb-4 p-3 bg-red-900/30 border border-red-800 text-red-400 text-sm rounded-lg flex items-center"><AlertCircle size={16} className="mr-2" /> {error}</div>)}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegistering && (<div><label className="block text-sm font-medium text-slate-400 mb-1">Tên hiển thị</label><input type="text" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={displayName} onChange={e => setDisplayName(e.target.value)} required /></div>)}
-            <div><label className="block text-sm font-medium text-slate-400 mb-1">Email</label><input type="email" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-            <div><label className="block text-sm font-medium text-slate-400 mb-1">Mật khẩu</label><input type="password" className="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-emerald-500 outline-none" value={password} onChange={e => setPassword(e.target.value)} required /></div>
-            <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg transition flex justify-center items-center">{loading ? <Loader2 className="animate-spin" /> : (isRegistering ? 'Đăng ký' : 'Đăng nhập')}</button>
-          </form>
-          <div className="my-4 flex items-center"><div className="flex-grow border-t border-slate-700"></div><span className="mx-4 text-slate-500 text-sm">Hoặc</span><div className="flex-grow border-t border-slate-700"></div></div>
-          <button onClick={handleGoogleLogin} className="w-full bg-white text-slate-900 font-bold py-3 rounded-lg flex justify-center items-center gap-2 hover:bg-gray-100 transition"><Globe size={20} /> Đăng nhập bằng Google</button>
-          <div className="mt-6 text-center text-sm text-slate-500">{isRegistering ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}<button onClick={() => setIsRegistering(!isRegistering)} className="text-emerald-500 font-bold hover:underline">{isRegistering ? 'Đăng nhập' : 'Đăng ký ngay'}</button></div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
+// --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null); const [loading, setLoading] = useState(true); const [tab, setTab] = useState('home'); const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => { const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }); return () => unsubscribe(); }, []);
@@ -599,7 +524,7 @@ export default function App() {
           <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">{isAdmin ? 'Administrator' : 'Member'}</div></div><button onClick={() => signOut(auth)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition"><LogOut size={20} /></button><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
       </nav>
-      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={user} />}{tab === 'news' && <NewsFeed user={user} />}{tab === 'database' && <DatabaseView />}{tab === 'story' && <StoryMode />}{tab === 'admin' && isAdmin && <AdminPanel />}</main>
+      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={user} />}{tab === 'news' && <NewsFeed user={user} />}{tab === 'database' && <DatabaseView />}{tab === 'story' && <StoryMode user={user} />}{tab === 'admin' && isAdmin && <AdminPanel />}</main>
     </div>
   );
 }
