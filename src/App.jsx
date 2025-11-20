@@ -23,14 +23,15 @@ const SAMPLE_POSTS = [
   {
     id: 1,
     title: "Tổng kết mùa giải 2024: Cú ăn ba lịch sử!",
-    content: "Một mùa giải không thể tin nổi! Chúng ta đã vô địch League, Cup và cả Champions League. \n\n**Mbappe** thực sự là một con quái vật với 52 bàn thắng.",
+    content: "Một mùa giải không thể tin nổi! Chúng ta đã vô địch League, Cup và cả Champions League. \n\n**Mbappe** thực sự là một con quái vật với 52 bàn thắng. Tuy nhiên, hàng thủ vẫn cần cải thiện khi để lọt lưới khá nhiều ở những phút cuối.",
     type: "review",
     author: "tencuto",
     createdAt: new Date().toISOString(),
     rating: 4.8,
     ratingCount: 15,
     comments: [
-      { id: 1, author: "fan_ham_mo", content: "Đội hình quá khủng!", createdAt: new Date().toISOString() }
+      { id: 1, author: "fan_ham_mo", content: "Đội hình quá khủng, chúc mừng bác!", createdAt: new Date().toISOString() },
+      { id: 2, author: "rival_club", content: "May mắn thôi...", createdAt: new Date().toISOString() }
     ],
     files: []
   }
@@ -43,6 +44,13 @@ const renderRichText = (text) => {
     .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
     .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
+};
+
+const formatCurrency = (value) => {
+  if (!value || value === 0) return '-';
+  if (value >= 1000000) return `€${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `€${(value / 1000).toFixed(0)}K`;
+  return `€${value}`;
 };
 
 const formatFileSize = (bytes) => {
@@ -68,13 +76,6 @@ const parseTransferValue = (valStr) => {
     }
     return parseSingleVal(cleanStr);
   } catch (e) { return 0; }
-};
-
-const formatCurrency = (value) => {
-  if (!value || value === 0) return '-';
-  if (value >= 1000000) return `€${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `€${(value / 1000).toFixed(0)}K`;
-  return `€${value}`;
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -242,39 +243,38 @@ const AttributeBox = ({ label, value }) => {
   );
 };
 
-// --- PITCH VIEW (AUTO BEST XI) ---
-const PitchView = ({ players }) => {
-  const getBestXI = () => {
-    const usedIDs = new Set();
-    const findBest = (positions) => {
-      const candidates = players.filter(p => !usedIDs.has(p.UID) && positions.some(pos => p.Position && p.Position.includes(pos)));
-      const best = candidates.sort((a, b) => (b['Av Rat'] || 0) - (a['Av Rat'] || 0))[0];
-      if (best) usedIDs.add(best.UID);
-      return best;
-    };
-    return {
-      GK: findBest(['GK']),
-      DR: findBest(['D (R)', 'WB (R)']), DL: findBest(['D (L)', 'WB (L)']),
-      DC1: findBest(['D (C)']), DC2: findBest(['D (C)']),
-      MCR: findBest(['M (C)', 'DM']), MCL: findBest(['M (C)', 'DM']),
-      AMR: findBest(['AM (R)', 'M (R)']), AML: findBest(['AM (L)', 'M (L)']),
-      AMC: findBest(['AM (C)', 'ST (C)']), ST: findBest(['ST'])
-    };
-  };
-  const team = getBestXI();
-  const PlayerMarker = ({ player, top, left }) => (
-    <div className="absolute flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 transition hover:scale-110 cursor-pointer z-10 group" style={{ top, left }} title={player ? `${player.Name} (Rat: ${player["Av Rat"]})` : "Vị trí trống"}>
-      <div className="relative">
-        <PlayerAvatar uid={player?.UID} name={player?.Name} size="md" className={`border-2 ${player ? 'border-white' : 'border-slate-500 opacity-50'}`} />
-        {player && (<div className="absolute -top-2 -right-2 bg-emerald-600 text-white text-[10px] font-bold px-1.5 rounded-full border border-white shadow-sm">{player["Av Rat"]}</div>)}
+const TableStatBar = ({ value, max = 20, colorMap = true, showValueLeft = false }) => {
+  if (value === undefined || value === '-' || value === 0) return <span className="text-slate-600 text-xs">-</span>;
+
+  let color = "bg-blue-500";
+  if (colorMap) {
+    const ratio = value / max;
+    if (ratio > 0.7) color = "bg-emerald-500";
+    else if (ratio > 0.4) color = "bg-yellow-500";
+    else color = "bg-slate-500";
+  }
+
+  const percent = Math.min((value / max) * 100, 100);
+
+  return (
+    <div className={`flex items-center gap-2 w-full max-w-[80px] ${showValueLeft ? 'justify-end' : ''}`}>
+      {showValueLeft && <span className={`text-xs font-bold w-6 text-right ${value > 0 ? 'text-white' : 'text-slate-500'}`}>{value}</span>}
+      <div className="flex-1 h-2 bg-slate-900/50 rounded-sm overflow-hidden border border-slate-700/30">
+        <div className={`h-full ${color} shadow-[0_0_8px_rgba(0,0,0,0.3)]`} style={{ width: `${percent}%` }}></div>
       </div>
-      <div className="mt-1 bg-slate-900/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] text-white font-bold whitespace-nowrap shadow-sm max-w-[80px] overflow-hidden text-ellipsis">{player ? player.Name.split(' ').pop() : 'Empty'}</div>
+      {!showValueLeft && <span className={`text-xs font-bold w-6 ${value > 0 ? 'text-white' : 'text-slate-500'}`}>{value}</span>}
     </div>
   );
+};
+
+const StoryStatBar = ({ value, max, colorClass = "bg-emerald-500" }) => {
+  const percent = max > 0 ? (value / max) * 100 : 0;
   return (
-    <div className="relative w-full aspect-[2/3] md:aspect-[4/3] bg-green-700 rounded-xl overflow-hidden border-4 border-white/20 shadow-inner mx-auto max-w-2xl">
-      <div className="absolute inset-4 border-2 border-white/30 rounded-sm"></div><div className="absolute top-1/2 left-0 right-0 h-px bg-white/30"></div><div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white/30 rounded-full transform -translate-x-1/2 -translate-y-1/2"></div><div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-48 h-24 border-b-2 border-l-2 border-r-2 border-white/30 rounded-b-lg bg-white/5"></div><div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-48 h-24 border-t-2 border-l-2 border-r-2 border-white/30 rounded-t-lg bg-white/5"></div>
-      <PlayerMarker player={team.GK} top="90%" left="50%" /><PlayerMarker player={team.DL} top="75%" left="15%" /><PlayerMarker player={team.DC1} top="75%" left="35%" /><PlayerMarker player={team.DC2} top="75%" left="65%" /><PlayerMarker player={team.DR} top="75%" left="85%" /><PlayerMarker player={team.MCL} top="55%" left="35%" /><PlayerMarker player={team.MCR} top="55%" left="65%" /><PlayerMarker player={team.AML} top="35%" left="15%" /><PlayerMarker player={team.AMC} top="35%" left="50%" /><PlayerMarker player={team.AMR} top="35%" left="85%" /><PlayerMarker player={team.ST} top="15%" left="50%" />
+    <div className="flex items-center gap-2 w-24">
+      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+        <div className={`h-full ${colorClass}`} style={{ width: `${percent}%` }}></div>
+      </div>
+      <span className={`text-xs font-bold w-8 text-right ${value > 0 ? 'text-white' : 'text-slate-600'}`}>{value}</span>
     </div>
   );
 };
@@ -335,6 +335,43 @@ const PlayerDetailModal = ({ selected, onClose }) => {
           )}
         </div>
       </div>
+    </div>
+  );
+};
+
+// --- PITCH VIEW (AUTO BEST XI) ---
+const PitchView = ({ players }) => {
+  const getBestXI = () => {
+    const usedIDs = new Set();
+    const findBest = (positions) => {
+      const candidates = players.filter(p => !usedIDs.has(p.UID) && positions.some(pos => p.Position && p.Position.includes(pos)));
+      const best = candidates.sort((a, b) => (b['Av Rat'] || 0) - (a['Av Rat'] || 0))[0];
+      if (best) usedIDs.add(best.UID);
+      return best;
+    };
+    return {
+      GK: findBest(['GK']),
+      DR: findBest(['D (R)', 'WB (R)']), DL: findBest(['D (L)', 'WB (L)']),
+      DC1: findBest(['D (C)']), DC2: findBest(['D (C)']),
+      MCR: findBest(['M (C)', 'DM']), MCL: findBest(['M (C)', 'DM']),
+      AMR: findBest(['AM (R)', 'M (R)']), AML: findBest(['AM (L)', 'M (L)']),
+      AMC: findBest(['AM (C)', 'ST (C)']), ST: findBest(['ST'])
+    };
+  };
+  const team = getBestXI();
+  const PlayerMarker = ({ player, top, left }) => (
+    <div className="absolute flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 transition hover:scale-110 cursor-pointer z-10 group" style={{ top, left }} title={player ? `${player.Name} (Rat: ${player["Av Rat"]})` : "Vị trí trống"}>
+      <div className="relative">
+        <PlayerAvatar uid={player?.UID} name={player?.Name} size="md" className={`border-2 ${player ? 'border-white' : 'border-slate-500 opacity-50'}`} />
+        {player && (<div className="absolute -top-2 -right-2 bg-emerald-600 text-white text-[10px] font-bold px-1.5 rounded-full border border-white shadow-sm">{player["Av Rat"]}</div>)}
+      </div>
+      <div className="mt-1 bg-slate-900/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] text-white font-bold whitespace-nowrap shadow-sm max-w-[80px] overflow-hidden text-ellipsis">{player ? player.Name.split(' ').pop() : 'Empty'}</div>
+    </div>
+  );
+  return (
+    <div className="relative w-full aspect-[2/3] md:aspect-[4/3] bg-green-700 rounded-xl overflow-hidden border-4 border-white/20 shadow-inner mx-auto max-w-2xl">
+      <div className="absolute inset-4 border-2 border-white/30 rounded-sm"></div><div className="absolute top-1/2 left-0 right-0 h-px bg-white/30"></div><div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white/30 rounded-full transform -translate-x-1/2 -translate-y-1/2"></div><div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-48 h-24 border-b-2 border-l-2 border-r-2 border-white/30 rounded-b-lg bg-white/5"></div><div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-48 h-24 border-t-2 border-l-2 border-r-2 border-white/30 rounded-t-lg bg-white/5"></div>
+      <PlayerMarker player={team.GK} top="90%" left="50%" /><PlayerMarker player={team.DL} top="75%" left="15%" /><PlayerMarker player={team.DC1} top="75%" left="35%" /><PlayerMarker player={team.DC2} top="75%" left="65%" /><PlayerMarker player={team.DR} top="75%" left="85%" /><PlayerMarker player={team.MCL} top="55%" left="35%" /><PlayerMarker player={team.MCR} top="55%" left="65%" /><PlayerMarker player={team.AML} top="35%" left="15%" /><PlayerMarker player={team.AMC} top="35%" left="50%" /><PlayerMarker player={team.AMR} top="35%" left="85%" /><PlayerMarker player={team.ST} top="15%" left="50%" />
     </div>
   );
 };
@@ -409,6 +446,13 @@ const StoryMode = ({ user }) => {
   const getTopScorers = (players) => [...players].sort((a, b) => (b.Gls || 0) - (a.Gls || 0)).slice(0, 5);
   const getTopAssists = (players) => [...players].sort((a, b) => (b.Ast || 0) - (a.Ast || 0)).slice(0, 5);
   const getTopRating = (players) => [...players].sort((a, b) => (b['Av Rat'] || 0) - (a['Av Rat'] || 0)).slice(0, 5);
+
+  const getMaxStats = (players) => ({
+    apps: Math.max(...players.map(p => p.Apps || 0), 1),
+    gls: Math.max(...players.map(p => p.Gls || 0), 1),
+    ast: Math.max(...players.map(p => p.Ast || 0), 1),
+    val: Math.max(...players.map(p => p['Transfer Value Num'] || 0), 1)
+  });
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -546,10 +590,7 @@ const StoryMode = ({ user }) => {
             </div>
           </div>
 
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Crown size={20} className="text-emerald-500" /> Tactics & Best XI</h3>
-            <PitchView players={selectedSeason.players} />
-          </div>
+          <div className="mb-8"><h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Crown size={20} className="text-emerald-500" /> Tactics & Best XI</h3><PitchView players={selectedSeason.players} /></div>
 
           {/* Full List */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
@@ -575,9 +616,9 @@ const StoryMode = ({ user }) => {
                       <td className="p-4 font-bold text-white group-hover:text-emerald-400 transition text-base">{p.Name}</td>
                       <td className="p-4 text-slate-400 text-xs font-mono bg-slate-900/20 rounded px-2">{p.Position}</td>
                       <td className="p-4 text-center text-slate-500">{p.Age}</td>
-                      <td className="p-4 text-center text-white font-bold">{p.Apps}</td>
-                      <td className="p-4 text-center text-emerald-400 font-bold">{p.Gls}</td>
-                      <td className="p-4 text-center text-blue-400 font-bold">{p.Ast || '-'}</td>
+                      <td className="p-4"><TableStatBar value={p.Apps} max={getMaxStats(selectedSeason.players).apps} colorMap={false} showValueLeft={false} /></td>
+                      <td className="p-4"><TableStatBar value={p.Gls} max={getMaxStats(selectedSeason.players).gls} colorMap={true} showValueLeft={false} /></td>
+                      <td className="p-4"><TableStatBar value={p.Ast} max={getMaxStats(selectedSeason.players).ast} colorMap={true} showValueLeft={false} /></td>
                       <td className="p-4 text-right pr-6">
                         <div className={`inline-block px-2 py-1 rounded text-xs font-bold border ${p["Av Rat"] >= 7.5 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : p["Av Rat"] >= 7.0 ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
                           {p["Av Rat"]}
@@ -598,11 +639,150 @@ const StoryMode = ({ user }) => {
   );
 }
 
-// --- MAIN APP ---
+// --- POST CREATOR & FEED (LOCAL STORAGE) ---
+const PostCreator = ({ user, onPostCreated }) => {
+  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [files, setFiles] = useState([]); const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null); const textareaRef = useRef(null);
+  const insertText = (before, after) => { const ta = textareaRef.current; if (!ta) return; const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value; setContent(t.substring(0, s) + before + t.substring(s, e) + after + t.substring(e)); setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, e + before.length); }, 0); };
+  const processFiles = (fileList) => { Array.from(fileList).forEach(file => { if (file.size > 5 * 1024 * 1024) alert(`File "${file.name}" > 5MB.`); else { const r = new FileReader(); r.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]); r.readAsDataURL(file); } }); };
+  const handleFile = (e) => processFiles(e.target.files);
+  const handlePaste = (e) => { const items = e.clipboardData.items; const pasted = []; for (let i = 0; i < items.length; i++) if (items[i].type.indexOf('image') !== -1) pasted.push(items[i].getAsFile()); if (pasted.length > 0) { e.preventDefault(); processFiles(pasted); } };
+  const handleSubmit = () => {
+    if (!title.trim()) return;
+    setSubmitting(true);
+    const newPost = {
+      id: Date.now(),
+      title, content, type, files,
+      author: user.displayName || 'Ẩn danh',
+      createdAt: new Date().toISOString(),
+      rating: 0, ratingCount: 0, comments: []
+    };
+    onPostCreated(newPost);
+    setTitle(""); setContent(""); setFiles([]);
+    setSubmitting(false);
+  };
+  const removeFile = (idx) => setFiles(files.filter((_, i) => i !== idx));
+
+  return (
+    <div className="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
+      <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={20} /> Tạo bài viết mới</h3>
+      <input className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition" placeholder="Tiêu đề..." value={title} onChange={e => setTitle(e.target.value)} />
+      <div className="flex gap-2 mb-3 items-center bg-slate-900 p-2 rounded-lg border border-slate-600">
+        <select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500"><option value="news">Tin tức</option><option value="tip">Chiến thuật</option><option value="review">Review</option></select>
+        <div className="h-4 w-[1px] bg-slate-600 mx-2"></div>
+        <button onClick={() => insertText('**', '**')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In đậm"><Bold size={16} /></button>
+        <button onClick={() => insertText('*', '*')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In nghiêng"><Italic size={16} /></button>
+        <button onClick={() => insertText('## ', '')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Tiêu đề"><Type size={16} /></button>
+        <div className="flex-grow"></div>
+        <button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition"><Paperclip size={14} /> Đính kèm</button>
+        <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFile} />
+      </div>
+      <textarea ref={textareaRef} className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition" placeholder="Nội dung... (Ctrl+V để dán ảnh)" value={content} onChange={e => setContent(e.target.value)} onPaste={handlePaste} />
+      {files.length > 0 && <div className="mb-4 flex flex-wrap gap-2">{files.map((f, i) => (<div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">{f.type.startsWith('image') ? <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" /> : <FileText className="text-slate-400" size={24} />}<div className="flex-1 min-w-0"><p className="text-xs text-slate-300 truncate">{f.name}</p><p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p></div><button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md"><Trash2 size={12} /></button></div>))}</div>}
+      <div className="flex justify-end"><button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50">{submitting ? 'Đang đăng...' : 'Đăng bài'}</button></div>
+    </div>
+  )
+}
+
+const NewsFeed = ({ user, posts, setPosts }) => {
+  const handlePost = (newPost) => setPosts([newPost, ...posts]);
+  const handleRate = (pid, star) => {
+    setPosts(posts.map(p => p.id === pid ? { ...p, rating: ((p.rating * p.ratingCount) + star) / (p.ratingCount + 1), ratingCount: p.ratingCount + 1 } : p));
+  };
+  const handleComment = (pid, comment) => {
+    setPosts(posts.map(p => p.id === pid ? { ...p, comments: [...(p.comments || []), comment] } : p));
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      {user && <PostCreator user={user} onPostCreated={handlePost} />}
+      <div className="space-y-6">
+        {posts.map(post => (
+          <div key={post.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500/50 transition group">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-emerald-400 font-bold border border-slate-600">{post.author?.[0]?.toUpperCase() || 'U'}</div><div><p className="font-bold text-slate-200 text-sm">{post.author}</p><p className="text-xs text-slate-400">{new Date(post.createdAt).toLocaleDateString()}</p></div></div>
+              <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border border-slate-600">{post.type}</span>
+            </div>
+            <h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3>
+            <div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>
+            {post.files?.length > 0 && <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">{post.files.map((f, i) => (<div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">{f.type.startsWith('image') ? <div className="aspect-video relative"><img src={f.data} className="w-full h-full object-cover" /><a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition"><Download className="text-white" /></a></div> : <div className="p-3 flex items-center gap-3"><FileText className="text-slate-400" /><div className="flex-1 min-w-0"><p className="text-xs font-medium text-slate-200 truncate">{f.name}</p></div><a href={f.data} download={f.name} className="text-emerald-500"><Download size={16} /></a></div>}</div>))}</div>}
+            <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
+              <div className="flex items-center space-x-1">{[1, 2, 3, 4, 5].map((star) => (<button key={star} onClick={() => handleRate(post.id, star)} className={`transition hover:text-yellow-400 ${star <= Math.round(post.rating || 0) ? 'text-yellow-500' : 'text-slate-600'}`}><Star size={16} fill={star <= Math.round(post.rating || 0) ? "currentColor" : "none"} /></button>))}<span className="text-xs text-slate-500 ml-1">({(post.rating || 0).toFixed(1)})</span></div>
+              <div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> {post.comments?.length || 0}</div>
+            </div>
+            <CommentSection post={post} onComment={handleComment} user={user} />
+          </div>
+        ))}
+        {posts.length === 0 && <p className="text-center text-slate-500">Chưa có bài viết nào.</p>}
+      </div>
+    </div>
+  );
+};
+
+const CommentSection = ({ post, onComment, user }) => {
+  const [newComment, setNewComment] = useState('');
+  const handleSend = () => { if (!newComment.trim()) return; onComment(post.id, { id: Date.now(), content: newComment, author: user.displayName, createdAt: new Date().toISOString() }); setNewComment(''); };
+  return (
+    <div className="mt-4 border-t border-slate-700 pt-4">
+      <div className="max-h-40 overflow-y-auto mb-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-600">{post.comments?.map(c => (<div key={c.id} className="bg-slate-700/30 p-2 rounded text-sm border border-slate-700"><span className="font-bold text-slate-300">{c.author}: </span><span className="text-slate-400">{c.content}</span></div>))}</div>
+      <div className="flex space-x-2"><input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Viết bình luận..." className="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-emerald-500 text-slate-200" /><button onClick={handleSend} className="text-emerald-500 hover:bg-emerald-900/20 p-1 rounded transition"><Send size={16} /></button></div>
+    </div>
+  );
+};
+
+const DatabaseView = ({ players }) => {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+  const filtered = useMemo(() => { if (!search) return players.slice(0, 50); return players.filter(p => p.Name.toLowerCase().includes(search.toLowerCase())); }, [players, search]);
+  useEffect(() => { const handleEsc = (e) => { if (e.key === 'Escape') setSelected(null); }; window.addEventListener('keydown', handleEsc); return () => window.removeEventListener('keydown', handleEsc); }, []);
+
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2"><Database className="text-emerald-500" /> Database <span className="text-slate-500 text-sm">({players.length})</span></h2>
+        <div className="relative w-full md:w-80"><Search className="absolute left-3 top-3 text-slate-500" size={18} /><input className="w-full pl-10 p-2.5 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 outline-none focus:border-emerald-500 transition" placeholder="Tìm cầu thủ..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+      </div>
+      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-slate-300">
+            <thead className="bg-slate-900 text-slate-400 uppercase font-bold"><tr><th className="p-4">Img</th><th className="p-4">Tên</th><th className="p-4">CLB</th><th className="p-4 text-center">CA</th><th className="p-4 text-center">PA</th><th className="p-4 text-center">Chi tiết</th></tr></thead>
+            <tbody className="divide-y divide-slate-700">{filtered.length === 0 ? <tr><td colSpan="6" className="p-8 text-center text-slate-500">Chưa có dữ liệu.</td></tr> : filtered.map((p, i) => (
+              <tr key={i} className="hover:bg-slate-700/50 cursor-pointer transition" onClick={() => setSelected(p)}><td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white">{p.Name}</td><td className="p-4 text-slate-400">{p.Club}</td><td className="p-4 text-center"><span className="bg-emerald-900/50 text-emerald-400 px-2 py-1 rounded font-bold border border-emerald-800">{p.CA || '-'}</span></td><td className="p-4 text-center"><span className="bg-purple-900/50 text-purple-400 px-2 py-1 rounded font-bold border border-purple-800">{p.PA || '-'}</span></td><td className="p-4 text-center"><Eye size={18} className="mx-auto text-slate-500 hover:text-white" /></td></tr>))}</tbody>
+          </table>
+        </div>
+      </div>
+      <PlayerDetailModal selected={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+};
+
+const AdminPanel = ({ onUpdateDb }) => {
+  const handleUpload = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = (ev) => {
+      const parsed = parseHtmlTable(ev.target.result);
+      onUpdateDb(parsed);
+      alert(`Đã nạp thành công ${parsed.length} cầu thủ vào bộ nhớ.`);
+    };
+    r.readAsText(f);
+  };
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+        <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500"><Database size={32} /></div>
+        <h3 className="text-xl font-bold text-white mb-2">Cập nhật Database (Local)</h3>
+        <p className="text-slate-400 mb-6">Upload file <b>database.html</b> để nạp dữ liệu vào bộ nhớ tạm.</p>
+        <label className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold cursor-pointer transition inline-flex items-center gap-2"><UploadCloud size={20} /> Chọn File Database<input type="file" className="hidden" onChange={handleUpload} accept=".html" /></label>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState(CURRENT_USER);
   const [tab, setTab] = useState('home');
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] = useState(SAMPLE_POSTS);
   const [players, setPlayers] = useState([]);
   const [mobileMenu, setMobileMenu] = useState(false);
 
@@ -625,70 +805,7 @@ export default function App() {
           <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">Admin (Local)</div></div><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
       </nav>
-      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={user} posts={posts} setPosts={setPosts} />}{tab === 'news' && <NewsFeed user={user} posts={posts} setPosts={setPosts} />}{tab === 'database' && <DatabaseView players={players} />}{tab === 'story' && <StoryMode user={user} />}{tab === 'admin' && <AdminPanel onUpdateDb={handleUpdateDb} />}</main>
+      <main className="animate-in fade-in duration-500">{tab === 'home' && (<div className="relative py-20 text-center"><div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-slate-900 to-slate-950"></div><div className="relative z-10 max-w-2xl mx-auto px-4"><span className="inline-block py-1 px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-widest mb-6 uppercase">Football Manager Tool</span><h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight text-white">GameHub <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">FC</span></h1><p className="text-xl text-slate-400 mb-10 font-light">Công cụ tra cứu chỉ số & phân tích đội hình tối thượng.</p><div className="flex justify-center gap-4"><button onClick={() => setTab('database')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><Search size={20} /> Tra cứu</button><button onClick={() => setTab('news')} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg border border-slate-700 transition flex items-center gap-2"><Newspaper size={20} /> Tin tức</button></div></div></div>)}{tab === 'home' && <NewsFeed user={user} posts={posts} setPosts={setPosts} />}{tab === 'news' && <NewsFeed user={user} posts={posts} setPosts={setPosts} />}{tab === 'database' && <DatabaseView players={players} />}{tab === 'story' && <StoryMode user={user} />}{tab === 'admin' && <AdminPanel onUpdateDb={updateDb} />}</main>
     </div>
   );
 }
-
-// --- NewsFeed, PostCreator, CommentSection, RatingSystem ---
-// [Giữ nguyên các component này từ phiên bản trước để không làm mất tính năng tin tức]
-const PostCreator = ({ user, onPostCreated }) => {
-  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [files, setFiles] = useState([]); const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef(null); const textareaRef = useRef(null);
-  const insertText = (before, after) => { const ta = textareaRef.current; if (!ta) return; const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value; setContent(t.substring(0, s) + before + t.substring(s, e) + after + t.substring(e)); setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, e + before.length); }, 0); };
-  const processFiles = (fileList) => { Array.from(fileList).forEach(file => { if (file.size > 5 * 1024 * 1024) alert(`File "${file.name}" > 5MB.`); else { const r = new FileReader(); r.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]); r.readAsDataURL(file); } }); };
-  const handleFile = (e) => processFiles(e.target.files);
-  const handlePaste = (e) => { const items = e.clipboardData.items; const pasted = []; for (let i = 0; i < items.length; i++) if (items[i].type.indexOf('image') !== -1) pasted.push(items[i].getAsFile()); if (pasted.length > 0) { e.preventDefault(); processFiles(pasted); } };
-  const handleSubmit = () => { if (!title.trim()) return; setSubmitting(true); const newPost = { id: Date.now(), title, content, type, files, author: user.displayName || 'Ẩn danh', createdAt: new Date().toISOString(), rating: 0, ratingCount: 0, comments: [] }; onPostCreated(newPost); setTitle(""); setContent(""); setFiles([]); setSubmitting(false); };
-  const removeFile = (idx) => setFiles(files.filter((_, i) => i !== idx));
-  return (
-    <div className="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
-      <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={20} /> Tạo bài viết mới</h3>
-      <input className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition" placeholder="Tiêu đề..." value={title} onChange={e => setTitle(e.target.value)} />
-      <div className="flex gap-2 mb-3 items-center bg-slate-900 p-2 rounded-lg border border-slate-600"><select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500"><option value="news">Tin tức</option><option value="tip">Chiến thuật</option><option value="review">Review</option></select><div className="h-4 w-[1px] bg-slate-600 mx-2"></div><button onClick={() => insertText('**', '**')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In đậm"><Bold size={16} /></button><button onClick={() => insertText('*', '*')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In nghiêng"><Italic size={16} /></button><button onClick={() => insertText('## ', '')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Tiêu đề"><Type size={16} /></button><div className="flex-grow"></div><button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition"><Paperclip size={14} /> Đính kèm</button><input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFile} /></div>
-      <textarea ref={textareaRef} className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition" placeholder="Nội dung... (Ctrl+V để dán ảnh)" value={content} onChange={e => setContent(e.target.value)} onPaste={handlePaste} />
-      {files.length > 0 && <div className="mb-4 flex flex-wrap gap-2">{files.map((f, i) => (<div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">{f.type.startsWith('image') ? <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" /> : <FileText className="text-slate-400" size={24} />}<div className="flex-1 min-w-0"><p className="text-xs text-slate-300 truncate">{f.name}</p><p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p></div><button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md"><Trash2 size={12} /></button></div>))}</div>}
-      <div className="flex justify-end"><button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50">{submitting ? 'Đang đăng...' : 'Đăng bài'}</button></div>
-    </div>
-  )
-}
-
-const NewsFeed = ({ user, posts, setPosts }) => {
-  const handlePost = (newPost) => setPosts([newPost, ...posts]);
-  const handleRate = (pid, star) => { setPosts(posts.map(p => p.id === pid ? { ...p, rating: ((p.rating * p.ratingCount) + star) / (p.ratingCount + 1), ratingCount: p.ratingCount + 1 } : p)); };
-  const handleComment = (pid, comment) => { setPosts(posts.map(p => p.id === pid ? { ...p, comments: [...(p.comments || []), comment] } : p)); };
-  return (
-    <div className="max-w-4xl mx-auto p-6">
-      {user && <PostCreator user={user} onPostCreated={handlePost} />}
-      <div className="space-y-6">{posts.map(post => (<div key={post.id} className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500/50 transition group"><div className="flex justify-between items-start mb-4"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-emerald-400 font-bold border border-slate-600">{post.author?.[0]?.toUpperCase() || 'U'}</div><div><p className="font-bold text-slate-200 text-sm">{post.author}</p><p className="text-xs text-slate-400">{new Date(post.createdAt).toLocaleDateString()}</p></div></div><span className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border border-slate-600">{post.type}</span></div><h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3><div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>{post.files?.length > 0 && <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">{post.files.map((f, i) => (<div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">{f.type.startsWith('image') ? <div className="aspect-video relative"><img src={f.data} className="w-full h-full object-cover" /><a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition"><Download className="text-white" /></a></div> : <div className="p-3 flex items-center gap-3"><FileText className="text-slate-400" /><div className="flex-1 min-w-0"><p className="text-xs font-medium text-slate-200 truncate">{f.name}</p></div><a href={f.data} download={f.name} className="text-emerald-500"><Download size={16} /></a></div>}</div>))}</div>}<div className="flex items-center gap-4 pt-4 border-t border-slate-700"><div className="flex items-center space-x-1">{[1, 2, 3, 4, 5].map((star) => (<button key={star} onClick={() => handleRate(post.id, star)} className={`transition hover:text-yellow-400 ${star <= Math.round(post.rating || 0) ? 'text-yellow-500' : 'text-slate-600'}`}><Star size={16} fill={star <= Math.round(post.rating || 0) ? "currentColor" : "none"} /></button>))}<span className="text-xs text-slate-500 ml-1">({(post.rating || 0).toFixed(1)})</span></div><div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> {post.comments?.length || 0}</div></div><CommentSection post={post} onComment={handleComment} user={user} /></div>))}</div>
-    </div>
-  );
-};
-
-const CommentSection = ({ post, onComment, user }) => {
-  const [newComment, setNewComment] = useState('');
-  const handleSend = () => { if (!newComment.trim()) return; onComment(post.id, { id: Date.now(), content: newComment, author: user.displayName, createdAt: new Date().toISOString() }); setNewComment(''); };
-  return (
-    <div className="mt-4 border-t border-slate-700 pt-4"><div className="max-h-40 overflow-y-auto mb-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-600">{post.comments?.map(c => (<div key={c.id} className="bg-slate-700/30 p-2 rounded text-sm border border-slate-700"><span className="font-bold text-slate-300">{c.author}: </span><span className="text-slate-400">{c.content}</span></div>))}</div><div className="flex space-x-2"><input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Viết bình luận..." className="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-emerald-500 text-slate-200" /><button onClick={handleSend} className="text-emerald-500 hover:bg-emerald-900/20 p-1 rounded transition"><Send size={16} /></button></div></div>
-  );
-};
-
-const DatabaseView = ({ players }) => {
-  const [search, setSearch] = useState(""); const [selected, setSelected] = useState(null);
-  const filtered = useMemo(() => { if (!search) return players.slice(0, 50); return players.filter(p => p.Name.toLowerCase().includes(search.toLowerCase())); }, [players, search]);
-  useEffect(() => { const handleEsc = (e) => { if (e.key === 'Escape') setSelected(null); }; window.addEventListener('keydown', handleEsc); return () => window.removeEventListener('keydown', handleEsc); }, []);
-  return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4"><h2 className="text-xl font-bold text-white flex items-center gap-2"><Database className="text-emerald-500" /> Database <span className="text-slate-500 text-sm">({players.length})</span></h2><div className="relative w-full md:w-80"><Search className="absolute left-3 top-3 text-slate-500" size={18} /><input className="w-full pl-10 p-2.5 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 outline-none focus:border-emerald-500 transition" placeholder="Tìm cầu thủ..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm text-left text-slate-300"><thead className="bg-slate-900 text-slate-400 uppercase font-bold"><tr><th className="p-4">Img</th><th className="p-4">Tên</th><th className="p-4">CLB</th><th className="p-4 text-center">CA</th><th className="p-4 text-center">PA</th><th className="p-4 text-center">Chi tiết</th></tr></thead><tbody className="divide-y divide-slate-700">{filtered.map((p, i) => (<tr key={i} className="hover:bg-slate-700/50 cursor-pointer transition" onClick={() => setSelected(p)}><td className="p-4"><PlayerAvatar uid={p.UID} name={p.Name} size="sm" /></td><td className="p-4 font-bold text-white">{p.Name}</td><td className="p-4 text-slate-400">{p.Club}</td><td className="p-4 text-center"><span className="bg-emerald-900/50 text-emerald-400 px-2 py-1 rounded font-bold border border-emerald-800">{p.CA || '-'}</span></td><td className="p-4 text-center"><span className="bg-purple-900/50 text-purple-400 px-2 py-1 rounded font-bold border border-purple-800">{p.PA || '-'}</span></td><td className="p-4 text-center"><Eye size={18} className="mx-auto text-slate-500 hover:text-white" /></td></tr>))}</tbody></table></div></div>
-      <PlayerDetailModal selected={selected} onClose={() => setSelected(null)} />
-    </div>
-  );
-};
-
-const AdminPanel = ({ onUpdateDb }) => {
-  const handleUpload = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { const parsed = parseHtmlTable(ev.target.result); onUpdateDb(parsed); alert(`Nạp thành công ${parsed.length} cầu thủ.`); }; r.readAsText(f); };
-  return (
-    <div className="max-w-4xl mx-auto p-6"><div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center"><div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500"><Database size={32} /></div><h3 className="text-xl font-bold text-white mb-2">Cập nhật Database (Local)</h3><p className="text-slate-400 mb-6">Upload file <b>database.html</b> để nạp dữ liệu vào bộ nhớ tạm.</p><label className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold cursor-pointer transition inline-flex items-center gap-2"><UploadCloud size={20} /> Chọn File Database<input type="file" className="hidden" onChange={handleUpload} accept=".html" /></label></div></div>
-  );
-};
