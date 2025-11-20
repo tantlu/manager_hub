@@ -9,8 +9,8 @@ import {
   updateProfile,
   signOut,
   onAuthStateChanged,
-  GoogleAuthProvider, // Thêm Provider Google
-  signInWithPopup     // Thêm hàm đăng nhập Popup
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -36,7 +36,7 @@ import {
   List, Shirt, Settings, CheckCircle, AlertCircle, Menu,
   Paperclip, Image as ImageIcon, Bold, Italic, Type, Star,
   MessageCircle, Send, FileText, Trash2, Lock, Mail, Key,
-  ChevronRight, Share2, Home, Globe // Globe thay thế icon Google nếu cần
+  ChevronRight, Share2, Home, Globe
 } from 'lucide-react';
 
 // --- FIREBASE CONFIGURATION ---
@@ -96,8 +96,21 @@ const callGeminiAPI = async (prompt) => {
 // --- UTILS & PARSERS ---
 const renderRichText = (text) => {
   if (!text) return null;
-  let html = text.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>').replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>');
+  let html = text
+    .replace(/\n/g, '<br/>')
+    .replace(/\*\*(.*?)\*\*/g, '<b class="text-emerald-400">$1</b>')
+    .replace(/\*(.*?)\*/g, '<i class="text-emerald-200">$1</i>')
+    .replace(/## (.*?)<br\/>/g, '<h3 class="text-lg font-bold my-3 text-emerald-500">$1</h3>')
+    .replace(/# (.*?)<br\/>/g, '<h2 class="text-xl font-bold my-3 text-emerald-500">$1</h2>');
   return <div dangerouslySetInnerHTML={{ __html: html }} className="leading-relaxed text-slate-300" />;
+};
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 const parseHtmlTable = (htmlString) => {
@@ -137,7 +150,6 @@ const parseHtmlTable = (htmlString) => {
 
     for (let i = startIndex; i < rows.length; i++) {
       const cells = Array.from(rows[i].querySelectorAll('td'));
-
       const getVal = (possibleKeys) => {
         if (!Array.isArray(possibleKeys)) possibleKeys = [possibleKeys];
         for (const key of possibleKeys) {
@@ -248,24 +260,149 @@ const AttributeBox = ({ label, value }) => {
 };
 
 const PostCreator = ({ user }) => {
-  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [type, setType] = useState("news"); const [submitting, setSubmitting] = useState(false);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [type, setType] = useState("news");
+  const [files, setFiles] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // Helper để chèn text vào vị trí con trỏ
+  const insertText = (before, after) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const newText = text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
+    setContent(newText);
+    // Set lại focus và vị trí con trỏ
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + before.length, end + before.length);
+    }, 0);
+  };
+
+  const processFiles = (fileList) => {
+    Array.from(fileList).forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`File "${file.name}" quá lớn (>5MB). Vui lòng dùng link Google Drive hoặc nén lại.`);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (ev) => setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, data: ev.target.result }]);
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const handleFile = (e) => processFiles(e.target.files);
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData.items;
+    const pastedFiles = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        pastedFiles.push(items[i].getAsFile());
+      }
+    }
+    if (pastedFiles.length > 0) {
+      e.preventDefault(); // Ngăn dán mặc định nếu là ảnh
+      processFiles(pastedFiles);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!title) return; setSubmitting(true);
+    if (!title.trim()) return;
+    setSubmitting(true);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), {
-        title, content, type, author: user.displayName || 'Ẩn danh', authorId: user.uid, createdAt: serverTimestamp(), rating: 0, ratingCount: 0
+        title, content, type, files,
+        author: user.displayName || 'Ẩn danh',
+        authorId: user.uid,
+        createdAt: serverTimestamp(),
+        rating: 0, ratingCount: 0
       });
-      setTitle(""); setContent("");
+      setTitle(""); setContent(""); setFiles([]);
     } catch (e) { console.error(e); alert("Lỗi đăng bài: " + e.message); }
     setSubmitting(false);
   }
+
+  const removeFile = (index) => {
+    setFiles(files.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="bg-slate-800 rounded-xl p-6 mb-8 border border-slate-700">
       <h3 className="font-bold text-slate-200 mb-4 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={20} /> Tạo bài viết mới</h3>
-      <input className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition" placeholder="Tiêu đề..." value={title} onChange={e => setTitle(e.target.value)} />
-      <div className="flex gap-3 mb-3"><select value={type} onChange={e => setType(e.target.value)} className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500 transition"><option value="news">Tin tức</option><option value="tip">Chiến thuật</option><option value="review">Review</option></select></div>
-      <textarea className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-24 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition" placeholder="Nội dung..." value={content} onChange={e => setContent(e.target.value)} />
-      <div className="flex justify-end"><button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50">{submitting ? 'Đang đăng...' : 'Đăng bài'}</button></div>
+
+      <input
+        className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-slate-200 focus:border-emerald-500 outline-none transition"
+        placeholder="Tiêu đề..."
+        value={title} onChange={e => setTitle(e.target.value)}
+      />
+
+      <div className="flex gap-2 mb-3 items-center bg-slate-900 p-2 rounded-lg border border-slate-600">
+        <select value={type} onChange={e => setType(e.target.value)} className="bg-slate-800 border border-slate-600 rounded px-3 py-1 text-sm text-slate-300 outline-none focus:border-emerald-500">
+          <option value="news">Tin tức</option>
+          <option value="tip">Chiến thuật</option>
+          <option value="review">Review</option>
+        </select>
+        <div className="h-4 w-[1px] bg-slate-600 mx-2"></div>
+
+        {/* Text Formatting Buttons */}
+        <button onClick={() => insertText('**', '**')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In đậm"><Bold size={16} /></button>
+        <button onClick={() => insertText('*', '*')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="In nghiêng"><Italic size={16} /></button>
+        <button onClick={() => insertText('## ', '')} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Tiêu đề"><Type size={16} /></button>
+
+        <div className="flex-grow"></div>
+
+        <button onClick={() => fileInputRef.current.click()} className="p-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded flex items-center gap-2 text-xs font-bold transition" title="Đính kèm file (Max 5MB)">
+          <Paperclip size={14} /> Đính kèm / Dán ảnh
+        </button>
+        <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFile} />
+      </div>
+
+      <textarea
+        ref={textareaRef}
+        className="w-full p-4 bg-slate-900 border border-slate-600 rounded-lg h-32 text-sm text-slate-300 focus:border-emerald-500 outline-none mb-3 transition"
+        placeholder="Nội dung... (Bạn có thể Ctrl+V để dán ảnh trực tiếp)"
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        onPaste={handlePaste}
+      />
+
+      {/* File Preview */}
+      {files.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {files.map((f, i) => (
+            <div key={i} className="relative group bg-slate-900 border border-slate-600 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">
+              {f.type.startsWith('image') ? (
+                <img src={f.data} className="w-8 h-8 rounded object-cover bg-slate-800" alt="preview" />
+              ) : (
+                <FileText className="text-slate-400" size={24} />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-300 truncate">{f.name}</p>
+                <p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p>
+              </div>
+              <button onClick={() => removeFile(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition disabled:opacity-50"
+        >
+          {submitting ? 'Đang đăng...' : 'Đăng bài'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -289,6 +426,34 @@ const NewsFeed = ({ user }) => {
             </div>
             <h3 className="font-bold text-xl mb-3 text-white group-hover:text-emerald-400 transition">{post.title}</h3>
             <div className="text-slate-300 text-sm leading-relaxed pl-4 border-l-2 border-slate-600 mb-4">{renderRichText(post.content)}</div>
+
+            {/* Display Attachments */}
+            {post.files && post.files.length > 0 && (
+              <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {post.files.map((f, i) => (
+                  <div key={i} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-900/50 group/file">
+                    {f.type.startsWith('image') ? (
+                      <div className="aspect-video relative">
+                        <img src={f.data} alt="attachment" className="w-full h-full object-cover hover:scale-105 transition duration-500" />
+                        <a href={f.data} download={f.name} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/file:opacity-100 transition">
+                          <Download className="text-white" />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="p-3 flex items-center gap-3">
+                        <FileText className="text-slate-400" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-200 truncate">{f.name}</p>
+                          <p className="text-[10px] text-slate-500">{formatFileSize(f.size)}</p>
+                        </div>
+                        <a href={f.data} download={f.name} className="text-emerald-500 hover:text-emerald-400"><Download size={16} /></a>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex items-center gap-4 pt-4 border-t border-slate-700"><RatingSystem postId={post.id} initialRating={post.rating} initialCount={post.ratingCount} user={user} /><div className="text-slate-400 flex items-center gap-1 text-sm ml-auto"><MessageCircle size={16} /> Bình luận</div></div>
             <CommentSection postId={post.id} user={user} />
           </div>
@@ -468,7 +633,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 font-sans text-slate-300 pb-20 selection:bg-emerald-500/30 selection:text-emerald-200">
       <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}><Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span></div>
+          <div className="flex items-center gap-2 font-bold text-xl text-white cursor-pointer" onClick={() => setTab('home')}>
+            <Trophy className="text-emerald-500" size={24} /> <span>Manager<span className="text-emerald-500">Hub</span></span>
+          </div>
           <div className="hidden md:flex gap-1">{[{ id: 'home', label: 'Trang chủ', icon: Home }, { id: 'news', label: 'Tin tức', icon: Newspaper }, { id: 'database', label: 'Database', icon: Database }, { id: 'story', label: 'Story', icon: Activity }].map((item) => (<button key={item.id} onClick={() => setTab(item.id)} className={`px-4 py-2 rounded-lg transition text-sm font-medium flex items-center gap-2 ${tab === item.id ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/50' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><item.icon size={16} /> {item.label}</button>))}{isAdmin && <button onClick={() => setTab('admin')} className={`px-4 py-2 rounded-lg transition text-sm font-bold flex items-center gap-2 ml-4 ${tab === 'admin' ? 'bg-red-900/30 text-red-400 border border-red-800' : 'text-red-400 hover:bg-red-900/20'}`}><Lock size={14} /> Admin</button>}</div>
           <div className="flex items-center gap-3"><div className="hidden md:block text-right"><div className="text-sm font-bold text-white">{user.displayName}</div><div className="text-[10px] text-slate-500">{isAdmin ? 'Administrator' : 'Member'}</div></div><button onClick={() => signOut(auth)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition"><LogOut size={20} /></button><button className="md:hidden text-slate-400" onClick={() => setMobileMenu(!mobileMenu)}><Menu /></button></div>
         </div>
